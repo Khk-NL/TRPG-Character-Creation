@@ -1,0 +1,6 @@
+interface:
+  display_name: "COC 7版调查员自动建卡"
+  short_description: "根据基础人设、模组公告和COC5数值自动填写完整调查员卡"
+  default_prompt: "使用 $coc7-investigator 根据我的基础人设、模组公告和 COC5 数值生成完整调查员卡。"
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>COC 7版调查员 · 建卡资料</title>
+  <style>
+    :root { color-scheme: light; font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif; background: #f4f1e9; color: #242b31; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { max-width: 960px; margin: 0 auto; padding: 28px 20px 56px; }
+    header { border-bottom: 2px solid #263e43; padding-bottom: 19px; margin-bottom: 24px; }
+    h1 { font-size: clamp(26px, 4vw, 38px); margin: 0 0 9px; letter-spacing: .02em; }
+    h2 { font-size: 18px; margin: 0 0 17px; color: #27474b; }
+    p { line-height: 1.65; margin: 0; }
+    .hint { color: #596269; font-size: 14px; }
+    .card { background: #fffdf8; border: 1px solid #d8d2c3; border-radius: 14px; padding: 22px; margin: 18px 0; box-shadow: 0 3px 12px #17282b0c; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    label { display: block; font-size: 14px; font-weight: 650; margin-bottom: 7px; }
+    label .optional { font-weight: 400; color: #697276; }
+    input, textarea, select { width: 100%; border: 1px solid #aaa99f; border-radius: 8px; padding: 10px 11px; font: inherit; background: white; color: inherit; }
+    input:focus, textarea:focus, select:focus { outline: 2px solid #51838a; outline-offset: 1px; }
+    textarea { min-height: 130px; resize: vertical; line-height: 1.55; }
+    #preview { min-height: 240px; font: 13px/1.5 Consolas, "Cascadia Code", monospace; }
+    .span-all { grid-column: 1 / -1; }
+    .radio-row { display: flex; gap: 18px; flex-wrap: wrap; margin: 2px 0 18px; }
+    .radio-row label { display: flex; align-items: center; gap: 7px; margin: 0; font-weight: 500; }
+    .radio-row input { width: auto; }
+    [hidden] { display: none !important; }
+    details.card { padding-top: 17px; }
+    details.card summary { cursor: pointer; font-weight: 700; color: #27474b; font-size: 18px; }
+    details.card[open] summary { margin-bottom: 20px; }
+    #statsPaste { min-height: 150px; }
+    .game-types { display: flex; gap: 10px; flex-wrap: wrap; }
+    .game-types button { min-width: 120px; }
+    .game-types button:disabled { background: #e2e1db; color: #717675; border-color: #bebfb8; cursor: not-allowed; filter: none; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+    button { border: 1px solid #1d4144; background: #284e50; color: white; border-radius: 8px; padding: 11px 16px; font: inherit; cursor: pointer; }
+    button.secondary { background: #fff; color: #284e50; }
+    button:hover { filter: brightness(1.1); }
+    #status { min-height: 1.6em; margin-top: 12px; font-size: 14px; color: #205e46; }
+    #status.error { color: #a12d24; }
+    code { background: #e8ece9; border-radius: 4px; padding: 1px 5px; }
+    @media (max-width: 700px) { .grid, .grid.two { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 500px) { .grid, .grid.two { grid-template-columns: 1fr; } main { padding: 20px 14px 36px; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>调查员建卡资料</h1>
+    <p>填写你确定的信息，生成 JSON 后交给 Agent。背景故事、技能点、装备和 Excel 表由调查员建卡 Skill 补全。</p>
+    <p class="hint">此页面离线运行；不会上传或保存你填写的内容。带 * 的项目必须填写。</p>
+  </header>
+
+  <form id="intakeForm">
+    <section class="card">
+      <h2>规则类型</h2>
+      <div class="game-types" role="group" aria-label="规则类型">
+        <button type="button" aria-pressed="true">COC 7版 · 已开放</button>
+        <button type="button" disabled aria-label="DND 待开发">DND · 待开发</button>
+        <button type="button" disabled aria-label="COJ 待开发">COJ · 待开发</button>
+      </div>
+    </section>
+    <section class="card">
+      <h2>基础人设</h2>
+      <div class="grid">
+        <div><label for="name">姓名 *</label><input id="name" required autocomplete="off"></div>
+        <div><label for="gender">性别或性别表达 *</label><input id="gender" required autocomplete="off"></div>
+        <div><label for="occupation">职业 *</label><input id="occupation" required placeholder="例如：记者、会计师" autocomplete="off"></div>
+        <div class="span-all"><label for="announcement">模组公告或公开导入 *</label><textarea id="announcement" required placeholder="粘贴模组公告中玩家可知的时代、地点、事件和导入背景；时代由公告推断。"></textarea></div>
+      </div>
+    </section>
+
+    <details class="card" id="optionalDetails">
+      <summary>更多可选信息</summary>
+      <div class="grid">
+        <div><label for="age">年龄 <span class="optional">可选</span></label><input id="age" type="number" min="15" max="89" step="1"></div>
+        <div><label for="player">玩家名 <span class="optional">可选</span></label><input id="player"></div>
+        <div><label for="nationality">国籍 <span class="optional">可选</span></label><input id="nationality"></div>
+        <div><label for="residence">现居地 <span class="optional">可选</span></label><input id="residence"></div>
+        <div><label for="hometown">故乡 <span class="optional">可选</span></label><input id="hometown"></div>
+        <div><label for="groupName">团名 <span class="optional">可选；用于文件名</span></label><input id="groupName" placeholder="不填时由公告标题推断"></div>
+        <div class="span-all"><label for="persona">补充人设 <span class="optional">外貌、性格、关系、经历等</span></label><textarea id="persona" placeholder="写下你已确定的设定；没有可留空。"></textarea></div>
+        <div class="span-all"><label for="backgroundNotes">背景补充说明 <span class="optional">可选</span></label><textarea id="backgroundNotes" placeholder="例如：必须保留的家人、经历、性格矛盾、不能改动的设定。"></textarea></div>
+        <div class="span-all"><label for="keeperRequirements">KP 要求 <span class="optional">可选</span></label><textarea id="keeperRequirements" placeholder="例如：禁用的职业或武器、年代限制、技能上限、房规、背景禁忌。"></textarea></div>
+        <div class="span-all"><label for="outputPath">希望保存的位置 <span class="optional">可选；目录或 .xlsx 文件</span></label><input id="outputPath" placeholder="例如 D:\QQ\人物卡（留空使用任务默认输出目录）"></div>
+      </div>
+    </details>
+
+    <section class="card">
+      <h2>COC5 属性</h2>
+      <div class="radio-row" role="radiogroup" aria-label="属性是否已完成七版年龄调整">
+        <label><input type="radio" name="statMode" value="raw" checked> COC5 原始属性，按年龄调整</label>
+        <label><input type="radio" name="statMode" value="final"> 已调整好的七版最终属性</label>
+      </div>
+      <p class="hint" style="margin-bottom:16px">最终属性模式保留你填的 EDU、Luck 等数值；原始属性模式由 skill 处理年龄规则。</p>
+      <div class="radio-row" role="radiogroup" aria-label="属性填写方式">
+        <label><input type="radio" name="statEntryMode" value="paste" checked> 整段粘贴</label>
+        <label><input type="radio" name="statEntryMode" value="manual"> 逐项填写</label>
+      </div>
+      <div id="pasteFields">
+        <label for="statsPaste">粘贴 COC5 属性结果 *</label>
+        <textarea id="statsPaste" required placeholder="力量 55 体质 60 体型 65 敏捷 70 外貌 55 智力 75 意志 60 教育 70 幸运 50"></textarea>
+        <p class="hint">支持中文属性名、STR/CON 等英文缩写，以及“属性名：数值”格式。也可以粘贴 .coc5 的多组结果，再选择其中一组。</p>
+        <div id="groupChoice" hidden style="margin-top:16px">
+          <label for="statGroup">选择要使用的属性组 *</label>
+          <select id="statGroup"><option value="">请选择一组</option></select>
+        </div>
+      </div>
+      <div class="grid" id="stats" hidden></div>
+    </section>
+
+    <section class="card">
+      <h2>生成建卡请求</h2>
+      <p class="hint">在 Codex 中输入 <code>$coc7-investigator</code>；在已安装此 Skill 的 DeepSeek Harness 中输入 <code>/coc7-investigator</code>。随后粘贴 JSON 或附上下载的文件。这个 JSON 是给 Agent 的简短请求，不能直接传给 <code>fill</code>。</p>
+      <div class="actions">
+        <button type="submit">生成 JSON</button>
+        <button type="button" id="copyBtn" class="secondary">复制 JSON</button>
+        <button type="button" id="downloadBtn" class="secondary">下载 JSON</button>
+        <button type="button" id="importBtn" class="secondary">导入旧 JSON</button>
+      </div>
+      <input id="importFile" type="file" accept=".json,application/json" hidden>
+      <p id="status" role="status" aria-live="polite"></p>
+      <label for="preview">预览</label>
+      <textarea id="preview" readonly placeholder="填写上方资料后点击“生成 JSON”。"></textarea>
+    </section>
+  </form>
+</main>
+<script>
+  const statNames = ["STR", "CON", "SIZ", "DEX", "APP", "INT", "POW", "EDU", "Luck"];
+  const form = document.getElementById("intakeForm");
+  const preview = document.getElementById("preview");
+  const status = document.getElementById("status");
+  const stats = document.getElementById("stats");
+  const statsPaste = document.getElementById("statsPaste");
+  const pasteFields = document.getElementById("pasteFields");
+  const groupChoice = document.getElementById("groupChoice");
+  const statGroup = document.getElementById("statGroup");
+  const optionalDetails = document.getElementById("optionalDetails");
+  for (const name of statNames) {
+    const wrapper = document.createElement("div");
+    const label = document.createElement("label");
+    const input = document.createElement("input");
+    input.id = `stat-${name}`;
+    input.type = "number";
+    input.min = "1";
+    input.max = "100";
+    input.step = "1";
+    input.required = false;
+    label.htmlFor = input.id;
+    label.textContent = `${name} *`;
+    wrapper.append(label, input);
+    stats.append(wrapper);
+  }
+  const field = id => document.getElementById(id).value.trim();
+  const statAliases = {
+    STR: "STR", CON: "CON", SIZ: "SIZ", DEX: "DEX", APP: "APP",
+    INT: "INT", POW: "POW", EDU: "EDU", LUCK: "Luck",
+    力量: "STR", 体质: "CON", 体型: "SIZ", 敏捷: "DEX", 外貌: "APP",
+    智力: "INT", 意志: "POW", 教育: "EDU", 幸运: "Luck", 幸运值: "Luck"
+  };
+  function parsePastedStatGroups(text) {
+    const groups = [];
+    let current = {};
+    const pattern = /(STR|CON|SIZ|DEX|APP|INT|POW|EDU|LUCK|力量|体质|体型|敏捷|外貌|智力|意志|教育|幸运值|幸运)\s*(?:[（(]\s*(?:STR|CON|SIZ|DEX|APP|INT|POW|EDU|LUCK)\s*[）)])?\s*[:：=]?\s*(\d{1,3})(?!\d)/gi;
+    for (const match of text.matchAll(pattern)) {
+      const key = statAliases[match[1].toUpperCase()];
+      if (key in current) {
+        groups.push(current);
+        current = {};
+      }
+      current[key] = Number(match[2]);
+    }
+    if (Object.keys(current).length) groups.push(current);
+    if (groups.length === 0 && !/[A-Za-z\u4e00-\u9fff]/.test(text)) {
+      const numbers = text.match(/\d{1,3}/g) ?? [];
+      if (numbers.length && numbers.length % statNames.length === 0) {
+        for (let start = 0; start < numbers.length; start += statNames.length) {
+          const group = {};
+          statNames.forEach((name, index) => { group[name] = Number(numbers[start + index]); });
+          groups.push(group);
+        }
+      }
+    }
+    for (const [index, group] of groups.entries()) {
+      const missing = statNames.filter(name => !(name in group));
+      if (missing.length) throw new Error(`第 ${index + 1} 组未识别到：${missing.join("、")}。请粘贴完整结果，或切换为逐项填写。`);
+      const invalid = statNames.filter(name => !Number.isInteger(group[name]) || group[name] < 1 || group[name] > 100);
+      if (invalid.length) throw new Error(`第 ${index + 1} 组数值须为 1–100 的整数：${invalid.join("、")}`);
+    }
+    if (!groups.length) throw new Error("未识别到九项属性。请粘贴带属性名的完整结果，或切换为逐项填写。");
+    return groups;
+  }
+  function updateStatGroups() {
+    const previous = statGroup.value;
+    try {
+      const groups = parsePastedStatGroups(field("statsPaste"));
+      groupChoice.hidden = groups.length <= 1;
+      statGroup.required = groups.length > 1;
+      statGroup.replaceChildren(new Option("请选择一组", ""));
+      groups.forEach((group, index) => {
+        statGroup.add(new Option(`第 ${index + 1} 组 · STR ${group.STR} / INT ${group.INT} / EDU ${group.EDU} / Luck ${group.Luck}`, String(index)));
+      });
+      if (previous && Number(previous) < groups.length) statGroup.value = previous;
+    } catch {
+      groupChoice.hidden = true;
+      statGroup.required = false;
+      statGroup.replaceChildren(new Option("请选择一组", ""));
+    }
+  }
+  function parsePastedStats(text) {
+    const groups = parsePastedStatGroups(text);
+    if (groups.length > 1 && statGroup.value === "") throw new Error(`检测到 ${groups.length} 组属性，请选择要使用的一组。`);
+    return groups[groups.length > 1 ? Number(statGroup.value) : 0];
+  }
+  statsPaste.addEventListener("input", updateStatGroups);
+  function syncStatEntryMode() {
+    const pasteMode = form.elements.statEntryMode.value === "paste";
+    pasteFields.hidden = !pasteMode;
+    stats.hidden = pasteMode;
+    statsPaste.required = pasteMode;
+    for (const name of statNames) document.getElementById(`stat-${name}`).required = !pasteMode;
+    if (!pasteMode && field("statsPaste")) {
+      try {
+        const parsed = parsePastedStats(field("statsPaste"));
+        for (const name of statNames) document.getElementById(`stat-${name}`).value = parsed[name];
+      } catch { /* 保留逐项填写区的现有值 */ }
+    }
+    if (pasteMode && !field("statsPaste") && statNames.every(name => field(`stat-${name}`))) {
+      statsPaste.value = statNames.map(name => `${name} ${field(`stat-${name}`)}`).join("\n");
+      updateStatGroups();
+    }
+  }
+  for (const option of form.elements.statEntryMode) option.addEventListener("change", syncStatEntryMode);
+  syncStatEntryMode();
+  function note(message, error = false) {
+    status.textContent = message;
+    status.classList.toggle("error", error);
+  }
+  function makeRequest() {
+    if (!form.reportValidity()) return null;
+    const basic = { name: field("name"), gender: field("gender"), occupation: field("occupation") };
+    for (const key of ["player", "nationality", "residence", "hometown"]) {
+      if (field(key)) basic[key] = field(key);
+    }
+    if (field("age")) basic.age = Number(field("age"));
+    if (field("groupName")) basic.group_name = field("groupName");
+    let characteristics;
+    try {
+      if (form.elements.statEntryMode.value === "paste") {
+        characteristics = parsePastedStats(field("statsPaste"));
+      } else {
+        characteristics = {};
+        for (const name of statNames) characteristics[name] = Number(field(`stat-${name}`));
+      }
+    } catch (error) {
+      note(error.message, true);
+      statsPaste.focus();
+      return null;
+    }
+    const request = {
+      kind: "coc7-investigator-intake",
+      schema_version: 1,
+      basic,
+      announcement: field("announcement"),
+      characteristics,
+      characteristics_are_final: form.elements.statMode.value === "final"
+    };
+    if (field("persona")) request.persona = field("persona");
+    if (field("backgroundNotes")) request.background_notes = field("backgroundNotes");
+    if (field("keeperRequirements")) request.keeper_requirements = field("keeperRequirements");
+    if (field("outputPath")) request.output_path = field("outputPath");
+    preview.value = JSON.stringify(request, null, 2);
+    note("JSON 已生成。可以复制后粘贴到 Agent 对话中。");
+    return request;
+  }
+  form.addEventListener("submit", event => { event.preventDefault(); makeRequest(); });
+  document.getElementById("copyBtn").addEventListener("click", async () => {
+    if (!makeRequest()) return;
+    try {
+      await navigator.clipboard.writeText(preview.value);
+    } catch {
+      preview.select();
+      if (!document.execCommand("copy")) {
+        note("浏览器限制了自动复制，请手动选中预览中的 JSON 复制。", true);
+        return;
+      }
+    }
+    note("JSON 已复制。请在 Codex 中调用 $coc7-investigator，或在 DeepSeek Harness 中调用 /coc7-investigator，再粘贴。");
+  });
+  document.getElementById("downloadBtn").addEventListener("click", () => {
+    if (!makeRequest()) return;
+    const blob = new Blob([preview.value], {type: "application/json;charset=utf-8"});
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "coc7-建卡资料.json";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    note("JSON 已下载。将文件附给 Agent 即可。");
+  });
+  document.getElementById("importBtn").addEventListener("click", () => document.getElementById("importFile").click());
+  document.getElementById("importFile").addEventListener("change", async event => {
+    const file = event.target.files[0];
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      if (data.kind !== "coc7-investigator-intake" || data.schema_version !== 1) throw new Error("不是本表单的建卡请求 JSON");
+      for (const key of ["name", "gender", "occupation", "player", "nationality", "residence", "hometown", "age"]) {
+        document.getElementById(key).value = data.basic?.[key] ?? "";
+      }
+      for (const name of statNames) document.getElementById(`stat-${name}`).value = data.characteristics?.[name] ?? "";
+      statsPaste.value = statNames.map(name => `${name} ${data.characteristics?.[name] ?? ""}`).join("\n");
+      updateStatGroups();
+      document.getElementById("announcement").value = data.announcement ?? "";
+      document.getElementById("persona").value = data.persona ?? "";
+      document.getElementById("backgroundNotes").value = data.background_notes ?? "";
+      document.getElementById("keeperRequirements").value = data.keeper_requirements ?? "";
+      document.getElementById("outputPath").value = data.output_path ?? "";
+      document.getElementById("groupName").value = data.basic?.group_name ?? "";
+      form.elements.statMode.value = data.characteristics_are_final ? "final" : "raw";
+      optionalDetails.open = ["age", "player", "nationality", "residence", "hometown", "groupName", "persona", "backgroundNotes", "keeperRequirements", "outputPath"].some(id => field(id));
+      if (makeRequest()) note("已导入旧 JSON。");
+    } catch (error) {
+      note(`导入失败：${error.message}`, true);
+    }
+    event.target.value = "";
+  });
+</script>
+</body>
+</html>

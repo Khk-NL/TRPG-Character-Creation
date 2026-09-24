@@ -1,0 +1,53 @@
+{
+  "random_seed": "skill-qa-accountant",
+  "basic": {
+    "name": "林默",
+    "group_name": "旧货账目",
+    "player": "QA",
+    "age": 29,
+    "era": "1920年代",
+    "occupation": "会计师",
+    "gender": "男",
+    "nationality": "中国",
+    "residence": "上海",
+    "hometown": "杭州",
+    "date": {"year": 1926, "month": 10, "day": 17, "time": "傍晚"}
+  },
+  "announcement": "上海的一位旧识委托调查一批账目异常的旧货。",
+  "characteristics": {
+    "STR": 55, "CON": 60, "SIZ": 65, "DEX": 70, "APP": 55,
+    "INT": 75, "POW": 60, "EDU": 70, "Luck": 50
+  },
+  "characteristics_are_final": true,
+  "background": {
+    "description": "身形清瘦，头发一丝不乱，常穿深灰马甲；说话前会扶一下圆框眼镜。",
+    "ideology": "相信每笔账都能追到源头，事实应当经得起复核。",
+    "significant_person": "启蒙老师沈伯言；他教会林默在压力下仍要把证据记完整。",
+    "meaningful_place": "杭州旧宅的阁楼；那里保存着父亲留下的账册。",
+    "treasured_possession": "一支刻有父亲姓名缩写的黑色钢笔。",
+    "trait": "耐心而较真；发现数字矛盾后很难主动放下。",
+    "story": "林默在上海为小商行核账，因擅长从零碎票据里找出异常而小有名气。旧识送来的账目涉及一批来源可疑的旧货，他接受委托既为报答人情，也想证明其中必有一条可追索的资金链。面对威胁时，他通常先保存证据、确认同伴退路，再继续追问。"
+  },
+  "skills": [
+    {"name": "信用评级", "occupation": 30},
+    {"name": "会计", "occupation": 40},
+    {"name": "法律", "occupation": 30},
+    {"name": "图书馆使用", "occupation": 40},
+    {"name": "聆听", "occupation": 30},
+    {"name": "说服", "occupation": 30},
+    {"name": "侦查", "occupation": 40},
+    {"name": "心理学", "occupation": 20, "occupation_choice": true},
+    {"name": "历史", "occupation": 20, "occupation_choice": true},
+    {"name": "闪避", "interest": 30},
+    {"name": "急救", "interest": 30},
+    {"name": "神秘学", "interest": 30},
+    {"name": "汽车驾驶", "interest": 20},
+    {"name": "格斗(斗殴)", "interest": 40}
+  ],
+  "items": [
+    {"name": "钢笔与采访本", "location": "内袋", "status": "随身"},
+    {"name": "袖珍手电筒", "location": "外套口袋", "status": "随身"},
+    {"name": "换洗衣物", "backpack": true}
+  ],
+  "weapons": [".22(5.6mm)小型自动手枪"]
+}
