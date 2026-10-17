@@ -1,0 +1,6 @@
+interface:
+  display_name: "DND 5E / 5R 人物自动建卡"
+  short_description: "按 2014 版 5E 或 2024 修订版 5R 规则生成 XLSX 人物卡"
+  default_prompt: "使用 $dnd-character 根据我的人设、团公告和属性创建 DND 人物卡；请先确认 5E/5R 版本。"
+policy:
+  allow_implicit_invocation: true

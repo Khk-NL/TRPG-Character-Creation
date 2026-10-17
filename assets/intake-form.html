@@ -59,7 +59,7 @@
       <h2>规则类型</h2>
       <div class="game-types" role="group" aria-label="规则类型">
         <button type="button" aria-pressed="true">COC 7版 · 已开放</button>
-        <button type="button" disabled aria-label="DND 待开发">DND · 待开发</button>
+        <button type="button" class="secondary" onclick="openDndIntake()" aria-label="打开 DND 建卡表单">DND 5E / 5R · 打开</button>
         <button type="button" disabled aria-label="COJ 待开发">COJ · 待开发</button>
       </div>
     </section>
@@ -129,6 +129,10 @@
   </form>
 </main>
 <script>
+  function openDndIntake() {
+    const installed = /[/\\]coc7-investigator[/\\]assets[/\\]/i.test(location.pathname);
+    location.href = installed ? '../../dnd-character/assets/intake-form.html' : '../dnd-character/assets/intake-form.html';
+  }
   const statNames = ["STR", "CON", "SIZ", "DEX", "APP", "INT", "POW", "EDU", "Luck"];
   const form = document.getElementById("intakeForm");
   const preview = document.getElementById("preview");

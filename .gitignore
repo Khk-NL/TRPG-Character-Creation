@@ -2,3 +2,7 @@ __pycache__/
 *.pyc
 outputs/
 *.report.json
+.DS_Store
+dnd-character/assets/dnd5r-blank.xlsx
+dnd-character/assets/dnd5e-blank.xlsx
+dnd-character/outputs/
