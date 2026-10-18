@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import copy
 import json
 import random
 import tempfile
@@ -106,6 +107,105 @@ class InvestigatorSkillTests(unittest.TestCase):
             self.assertEqual([cells[f"N{row}"]["value"] for row in (79, 80, 81)], ["换洗衣物", "雨布", "干粮"])
             self.assertEqual([cells[f"F{row}"]["value"] for row in (79, 80)], ["钢笔与采访本", "袖珍手电筒"])
             self.assertIsNone(cells["F81"]["value"] if cells["F81"] else None)
+
+    def test_build_strategy_checks_skill_coverage_and_reasons(self) -> None:
+        plan = {"skills": [{"name": "会计"}, {"name": "汽车驾驶"}], "build_strategy": {
+            "character_concept": "往返商行核账的会计师", "party_context": "未知",
+            "skill_reasons": {"会计": "本职工作", "汽车驾驶": "常驾车拜访客户"},
+            "choices": [{"choice": "主要投入会计", "reason": "日常工作最熟悉",
+                         "tradeoff": "保留不擅长战斗的弱点"}],
+        }}
+        self.assertEqual(MODULE.validate_build_strategy(plan), plan["build_strategy"])
+        self.assertIsNone(MODULE.validate_build_strategy({}))
+        invalid = []
+        for action in ("missing_skill", "extra_skill", "empty_reason", "missing_choice_reason", "bad_synergy", "empty_choices"):
+            candidate = copy.deepcopy(plan)
+            strategy = candidate["build_strategy"]
+            if action == "missing_skill":
+                strategy["skill_reasons"].pop("汽车驾驶")
+            elif action == "extra_skill":
+                strategy["skill_reasons"]["射击(手枪)"] = "无来源"
+            elif action == "empty_reason":
+                strategy["skill_reasons"]["会计"] = " "
+            elif action == "missing_choice_reason":
+                strategy["choices"][0].pop("reason")
+            elif action == "bad_synergy":
+                strategy["choices"][0]["synergy"] = True
+            else:
+                strategy["choices"] = []
+            invalid.append(candidate)
+        for candidate in invalid:
+            with self.subTest(candidate=candidate), self.assertRaises(MODULE.PlanError):
+                MODULE.validate_build_strategy(candidate)
+
+    def test_strategy_is_reported_without_rerolling_age(self) -> None:
+        plan = json.loads((ROOT / "tests" / "sample-plan.json").read_text(encoding="utf-8"))
+        # Youth adjustments preserve the existing point pools while actually rolling Luck.
+        plan.pop("random_seed", None)
+        plan["characteristics_are_final"] = False
+        plan["basic"]["age"] = 19
+        plan["characteristics"]["EDU"] = 75
+        with tempfile.TemporaryDirectory() as temp:
+            directory = Path(temp)
+            request = directory / "plan.json"
+            request.write_text(json.dumps(plan, ensure_ascii=False), encoding="utf-8")
+            before = MODULE.fill(TEMPLATE, request, directory / "before.xlsx")
+            plan["build_strategy"] = {
+                "character_concept": "初入商行的核账学徒", "party_context": "未知",
+                "skill_reasons": {entry["name"]: "测试用经历依据" for entry in plan["skills"]},
+                "choices": [{"choice": "保留工作专长", "reason": "依据已有职业经历"}],
+            }
+            request.write_text(json.dumps(plan, ensure_ascii=False), encoding="utf-8")
+            after = MODULE.fill(TEMPLATE, request, directory / "after.xlsx")
+            for key in ("seed", "age_adjustment", "final_characteristics", "points", "written_cells"):
+                self.assertEqual(before[key], after[key], key)
+            saved = json.loads((directory / "after.report.json").read_text(encoding="utf-8"))
+            self.assertEqual(saved["build_strategy"], plan["build_strategy"])
+            plan["skill_limits"] = {"occupation": 80, "non_occupation": 60, "basis": "investment"}
+            for entry in plan["skills"]:
+                entry.update(is_occupation=bool(entry.get("occupation")), classification_reason="测试分类依据")
+            request.write_text(json.dumps(plan, ensure_ascii=False), encoding="utf-8")
+            capped = MODULE.fill(TEMPLATE, request, directory / "capped.xlsx")
+            for key in ("seed", "age_adjustment", "final_characteristics", "written_cells"):
+                self.assertEqual(before[key], capped[key], key)
+            self.assertEqual(len(capped["skill_limits"]["checked_skills"]), len(plan["skills"]))
+            plan["skill_limits"]["occupation"] = 0
+            request.write_text(json.dumps(plan, ensure_ascii=False), encoding="utf-8")
+            with self.assertRaisesRegex(MODULE.PlanError, "超过职业上限"):
+                MODULE.fill(TEMPLATE, request, directory / "invalid.xlsx")
+            self.assertFalse((directory / "invalid.xlsx").exists())
+
+    def test_house_caps_follow_skill_category_not_point_pool(self) -> None:
+        plan = {"skill_limits": {"occupation": 80, "non_occupation": 60, "basis": "final"},
+                "skills": [
+                    {"name": "会计", "interest": 65, "base_value": 5, "is_occupation": True,
+                     "classification_reason": "职业明列，改用兴趣点补足"},
+                    {"name": "心理学", "occupation": 60, "base_value": 10, "is_occupation": True,
+                     "occupation_choice": True, "classification_reason": "合法开放名额"},
+                    {"name": "汽车驾驶", "interest": 40, "base_value": 20, "is_occupation": False,
+                     "classification_reason": "非本职爱好"}]}
+        result = MODULE.validate_skill_limits(plan)
+        self.assertEqual([row["limit"] for row in result["checked_skills"]], [80, 80, 60])
+        self.assertEqual([row["final_value"] for row in result["checked_skills"]], [70, 70, 60])
+        plan["skills"][2]["interest"] = 41
+        with self.assertRaisesRegex(MODULE.PlanError, "非职业上限 60"):
+            MODULE.validate_skill_limits(plan)
+        plan["skill_limits"]["basis"] = "investment"
+        self.assertEqual(MODULE.validate_skill_limits(plan)["checked_skills"][2]["checked_value"], 41)
+        plan["skills"][1]["is_occupation"] = False
+        with self.assertRaisesRegex(MODULE.PlanError, "不能按非职业"):
+            MODULE.validate_skill_limits(plan)
+        self.assertIsNone(MODULE.validate_skill_limits({}))
+
+    def test_house_caps_reject_missing_basis_classification_and_base(self) -> None:
+        valid = {"skill_limits": {"occupation": 80, "non_occupation": 60, "basis": "final"},
+                 "skills": [{"name": "会计", "occupation": 40, "base_value": 5,
+                             "is_occupation": True, "classification_reason": "职业明列"}]}
+        for field in ("basis", "is_occupation", "base_value", "classification_reason"):
+            plan = copy.deepcopy(valid)
+            (plan["skill_limits"] if field == "basis" else plan["skills"][0]).pop(field)
+            with self.subTest(field=field), self.assertRaises(MODULE.PlanError):
+                MODULE.validate_skill_limits(plan)
 
 
 if __name__ == "__main__":

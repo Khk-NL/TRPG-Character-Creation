@@ -18,6 +18,7 @@ FILES = (
     "assets/COC七版规则空白卡20.6.1.xlsx",
     "assets/intake-form.html",
     "references/background-writing.md",
+    "references/build-decisions.md",
     "references/code-references.md",
     "references/input-schema.md",
     "references/publishing.md",

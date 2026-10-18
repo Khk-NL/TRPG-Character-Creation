@@ -639,8 +639,84 @@ def normalize_characteristics(data: dict[str, Any]) -> dict[str, int]:
     return attrs
 
 
+def validate_build_strategy(plan: dict[str, Any]) -> dict[str, Any] | None:
+    """Check decision notes against the allocated skills, not their tactical merit."""
+    if "build_strategy" not in plan:
+        return None
+    strategy = plan["build_strategy"]
+    if not isinstance(strategy, dict):
+        raise PlanError("build_strategy 必须是对象")
+
+    def require_text(value: Any, label: str) -> None:
+        if not isinstance(value, str) or not value.strip():
+            raise PlanError(f"{label} 必须是非空字符串")
+
+    for key in ("character_concept", "party_context"):
+        require_text(strategy.get(key), f"build_strategy.{key}")
+    reasons = strategy.get("skill_reasons")
+    names = {entry.get("name") for entry in plan.get("skills", [])}
+    if not isinstance(reasons, dict) or set(reasons) != names:
+        raise PlanError("build_strategy.skill_reasons 必须准确覆盖 skills 中的全部技能名")
+    for name, reason in reasons.items():
+        require_text(reason, f"build_strategy.skill_reasons.{name}")
+    choices = strategy.get("choices")
+    if not isinstance(choices, list) or not choices:
+        raise PlanError("build_strategy.choices 至少需要一项取舍")
+    for index, choice in enumerate(choices):
+        if not isinstance(choice, dict):
+            raise PlanError(f"build_strategy.choices[{index}] 必须是对象")
+        for key in ("choice", "reason"):
+            require_text(choice.get(key), f"build_strategy.choices[{index}].{key}")
+        for key in ("synergy", "tradeoff"):
+            if key in choice:
+                require_text(choice[key], f"build_strategy.choices[{index}].{key}")
+    return strategy
+
+
+def validate_skill_limits(plan: dict[str, Any]) -> dict[str, Any] | None:
+    """Apply explicit house-rule caps using the Agent's verified classification/base."""
+    if "skill_limits" not in plan:
+        return None
+    limits = plan["skill_limits"]
+    if not isinstance(limits, dict) or limits.get("basis") not in {"final", "investment"}:
+        raise PlanError("skill_limits 必须指定 basis: final 或 investment")
+    for key in ("occupation", "non_occupation"):
+        value = limits.get(key)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise PlanError(f"skill_limits.{key} 必须是非负整数")
+    checked = []
+    for entry in plan.get("skills", []):
+        name = entry.get("name", "")
+        is_occupation = entry.get("is_occupation")
+        if not isinstance(is_occupation, bool):
+            raise PlanError(f"{name} 须用 is_occupation 明确职业/非职业分类")
+        source = entry.get("classification_reason")
+        if not isinstance(source, str) or not source.strip():
+            raise PlanError(f"{name} 须填写 classification_reason 说明分类依据")
+        occ = as_int(entry.get("occupation", 0), f"{name}.occupation")
+        interest = as_int(entry.get("interest", 0), f"{name}.interest")
+        if (occ > 0 or entry.get("occupation_choice")) and not is_occupation:
+            raise PlanError(f"{name} 使用职业点或开放名额，不能按非职业技能上限处理")
+        amount = occ + interest
+        row = {"name": name, "is_occupation": is_occupation,
+               "classification_reason": source, "investment": amount}
+        if limits["basis"] == "final":
+            base = entry.get("base_value")
+            if isinstance(base, bool) or not isinstance(base, int) or base < 0:
+                raise PlanError(f"{name} 按最终值限额时须提供已核对的 base_value")
+            amount += base
+            row.update(base_value=base, final_value=amount)
+        cap = limits["occupation" if is_occupation else "non_occupation"]
+        if amount > cap:
+            raise PlanError(f"{name} 的{'最终值' if limits['basis'] == 'final' else '投入点'}为 {amount}，超过{'职业' if is_occupation else '非职业'}上限 {cap}")
+        row.update(checked_value=amount, limit=cap)
+        checked.append(row)
+    return {**limits, "checked_skills": checked}
+
+
 def fill(template: Path, plan_path: Path, output: Path) -> dict[str, Any]:
     plan = json.loads(plan_path.read_text(encoding="utf-8-sig"))
+    strategy = validate_build_strategy(plan)
     basic = plan.get("basic") or {}
     background = plan.get("background") or {}
     required_basic = ("name", "age", "era", "occupation", "gender")
@@ -658,7 +734,12 @@ def fill(template: Path, plan_path: Path, output: Path) -> dict[str, Any]:
     if not isinstance(characteristics_are_final, bool):
         raise PlanError("characteristics_are_final 必须是 true 或 false")
     age = as_int(basic["age"], "basic.age")
-    seed_text = str(plan.get("random_seed") or hashlib.sha256(json.dumps(plan, ensure_ascii=False, sort_keys=True).encode()).hexdigest())
+    seed_plan = {key: value for key, value in plan.items() if key not in {"build_strategy", "skill_limits"}}
+    if "skills" in seed_plan:
+        seed_plan["skills"] = [{key: value for key, value in entry.items()
+                                if key not in {"base_value", "is_occupation", "classification_reason"}}
+                               for entry in seed_plan["skills"]]
+    seed_text = str(plan.get("random_seed") or hashlib.sha256(json.dumps(seed_plan, ensure_ascii=False, sort_keys=True).encode()).hexdigest())
     rng = random.Random(seed_text)
     attrs, age_log = age_adjust(raw, age, rng, plan.get("age_adjustment"), characteristics_are_final)
     catalog = workbook_catalog(template)
@@ -737,6 +818,7 @@ def fill(template: Path, plan_path: Path, output: Path) -> dict[str, Any]:
     credit_max = as_int(occupation.get("credit_max") or 99, "职业信用评级上限")
     if not credit_min <= credit <= credit_max:
         raise PlanError(f"信用评级职业点为 {credit}，职业范围是 {credit_min}–{credit_max}")
+    limit_report = validate_skill_limits(plan)
 
     carry_row = backpack_row = 79
     item_report = []
@@ -790,6 +872,10 @@ def fill(template: Path, plan_path: Path, output: Path) -> dict[str, Any]:
         "skills": skill_report, "items": item_report, "weapons": weapon_report,
         "written_cells": values,
     }
+    if strategy is not None:
+        report["build_strategy"] = strategy
+    if limit_report is not None:
+        report["skill_limits"] = limit_report
     report_path = output.with_suffix(".report.json")
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     return report
