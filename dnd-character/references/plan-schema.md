@@ -60,3 +60,18 @@
 5E 把 `background_bonus` 改成 `racial_bonus`，不填写 2024 起源专长；5E 的 `inventory`、`prepared_spells` 仍沿用字符串数组，`combat` 结构暂仅用于 5R。`basic.background_feature` 写入背景特性。5E 必须提供职业命中骰 `basic.hit_die`（6/8/10/12），可提供 `hp_gains` 数组记录 2 级起每级命中骰结果；未给时按固定平均值计算。`basic.armor_type`、`basic.armor`、`basic.speed` 写入桃子 v4.4.2 模板的装备与速度输入格。5E 当前生命值与模板等级骰格由脚本计算填写；5R 原模板自动按职业/体质等重算 HP。若有超过职业初始两项的豁免熟练，写 `extra_save_proficiency_source` 说明来源。`class_features`、`species_traits`、`feats` 可同时提供简短 `summary` 与完整 `description`：卡面放简述，另附默认生成的战斗速查全文；不要把规则书长段全文复制进公开仓库。
 
 技能名称采用卡面中文：运动、特技、巧手、隐匿、奥秘、历史、调查、自然、宗教、驯兽、洞悉、医药、察觉、求生、欺瞒、威吓、表演、游说。专精项也要出现在 `skill_proficiencies`。脚本验证数值、版次、格位和常见规则冲突；职业选项、技能来源、专长和法术数量仍需 Agent 对照所选规则书审核。
+
+## 5R 魔法装备的计算输入
+
+出现魔法物品时先读[魔法物品核对与落卡](magic-items.md)。以下字段只记录已获准且当前启用的加值，不依物品名称自动推断：
+
+```json
+{
+  "combat": {
+    "shield": {"name": "+1盾牌", "equipped": true, "ac": 3, "ac_source": "2024魔法物品：+1盾牌"},
+    "save_bonuses": {"STR": 0, "DEX": 0, "CON": 0, "INT": 0, "WIS": 0, "CHA": 0}
+  }
+}
+```
+
+这是局部字段示例，不能独立传入填卡脚本。`shield.ac` 为盾牌提供的总AC，默认2，当前支持2–5；非2时必须填写 `ac_source`，且不再把其附魔额外计入 `ac_bonus`。`save_bonuses` 缺省各项为0；有非零值时，须提供 `combat.save_bonuses_source` 和 `level_audit.expected_save_totals`（完整六项最终豁免整数），供原生保存后核对。防护斗篷需要同时处理额外AC和全部豁免，不能仅写物品名或只增加AC。现有 `mechanical_effects` 支持的目标仍为先攻、AC和固定HP；豁免来源另记在 `save_bonuses_source`。

@@ -82,6 +82,18 @@ def validate_5r_details(plan: dict[str, Any], level: int) -> dict[str, Any]:
     shield = combat.get("shield", {})
     if not isinstance(shield, dict) or not isinstance(shield.get("equipped", False), bool):
         raise PlanError("combat.shield 须为含 equipped 布尔值的对象")
+    shield_ac = shield.get("ac", 2)
+    if isinstance(shield_ac, bool) or not isinstance(shield_ac, int) or not 2 <= shield_ac <= 5:
+        raise PlanError("combat.shield.ac 须为盾牌提供的总 AC（通常 2，+1盾牌为3），范围2–5")
+    if shield_ac != 2 and not str(shield.get("ac_source", "")).strip():
+        raise PlanError("魔法盾牌的额外 AC 须注明 combat.shield.ac_source")
+    save_bonuses = combat.get("save_bonuses", {})
+    if not isinstance(save_bonuses, dict) or set(save_bonuses) - set(ABILITIES) or any(
+        isinstance(v, bool) or not isinstance(v, int) or not -20 <= v <= 20 for v in save_bonuses.values()
+    ):
+        raise PlanError("combat.save_bonuses 须为 STR/DEX/CON/INT/WIS/CHA 到整数加值的对象")
+    if any(save_bonuses.values()) and not str(combat.get("save_bonuses_source", "")).strip():
+        raise PlanError("豁免额外加值须注明 combat.save_bonuses_source")
     inventory = plan.get("inventory", [])
     if not isinstance(inventory, list):
         raise PlanError("5R inventory 必须是含 name、quantity、unit_weight、location 的物品数组")
@@ -239,6 +251,12 @@ def validate_5r_details(plan: dict[str, Any], level: int) -> dict[str, Any]:
         isinstance(v, bool) or not isinstance(v, int) for v in totals.values()
     ):
         raise PlanError("level_audit.expected_totals 须提供先攻、AC、HP 三项预期整数")
+    expected_saves = audit.get("expected_save_totals")
+    if expected_saves is not None or any(save_bonuses.values()):
+        if not isinstance(expected_saves, dict) or set(expected_saves) != set(ABILITIES) or any(
+            isinstance(v, bool) or not isinstance(v, int) for v in expected_saves.values()
+        ):
+            raise PlanError("有豁免额外加值时，level_audit.expected_save_totals 须提供六项最终豁免整数")
     return {"inventory": inventory, "selected_prepared_spells": selected,
             "always_prepared_spells": always,
             "prepared_spells": sorted(prepared, key=lambda spell: spell["level"]),
@@ -600,9 +618,12 @@ def build_5r(plan: dict[str, Any], valid: dict[str, Any]) -> dict[str, dict[str,
     main["G22"] = combat["initiative_bonus"]
     main["G23"] = combat["ac_bonus"]
     main["BB7"] = combat["hp_bonus_flat"]
+    for i, ability in enumerate(ABILITIES):
+        main[f"W{13+i}"] = combat.get("save_bonuses", {}).get(ability, 0)
     shield = combat.get("shield", {})
     if shield.get("name"):
-        main["AP40"] = str(shield["name"])
+        main["AL40"] = str(shield["name"])
+        main["AQ40"] = shield.get("ac", 2)
         main["AS40"] = "是" if shield.get("equipped") else "否"
     for tier, remaining in combat["spell_slots_current"].items():
         main[f"E{71+int(tier)}"] = remaining
@@ -731,6 +752,9 @@ def combat_reference(plan: dict[str, Any], valid: dict[str, Any]) -> str:
                   f"AC 额外加值：{combat['ac_bonus']}；来源：{combat.get('ac_bonus_source', '无')}",
                   f"HP 固定额外加值：{combat['hp_bonus_flat']}；来源：{combat.get('hp_bonus_flat_source', '无')}",
                   f"盾牌：{combat.get('shield', {}).get('name') or '无'}；装备：{'是' if combat.get('shield', {}).get('equipped') else '否'}",
+                  f"盾牌提供 AC：{combat.get('shield', {}).get('ac', 2)}（仅装备时计入；不重复加入额外AC）",
+                  "豁免额外加值：" + "、".join(f"{a} {combat.get('save_bonuses', {}).get(a, 0):+d}" for a in ABILITIES)
+                  + f"；来源：{combat.get('save_bonuses_source', '无')}",
                   "当前法术位：" + ("、".join(f"{tier}环 {count}" for tier, count in combat["spell_slots_current"].items()) or "无"),
                   "随身钱币：" + "、".join(f"{key.upper()} {combat['currency'][key]}" for key in ("pp", "gp", "ep", "sp", "cp")), ""]
         if combat["resources"]:
@@ -874,6 +898,18 @@ def inspect_saved(template: Path, destination: Path, changes: dict[str, dict[str
                     if (raw == "" and maximum != 0) or (raw != "" and not math.isclose(float(raw), maximum, abs_tol=0.001)):
                         raise PlanError(f"保存后法术位上限 {ref} 未计算正确：预期 {maximum}，实际 {raw}")
                 result["spell_slot_maxima"] = "passed"
+                expected_saves = plan["level_audit"].get("expected_save_totals")
+                if expected_saves is not None:
+                    actual_saves = {}
+                    for i, ability in enumerate(ABILITIES):
+                        ref = f"T{13+i}"
+                        if main.get(ref) is None or main[ref].find(f"{{{NS}}}f") is None:
+                            raise PlanError(f"保存后豁免公式 {ref} 丢失")
+                        raw = cell_text(ref)
+                        if not raw or not math.isclose(float(raw), expected_saves[ability], abs_tol=0.001):
+                            raise PlanError(f"保存后 {ability} 豁免未通过：预期 {expected_saves[ability]}，实际 {raw}")
+                        actual_saves[ability] = float(raw)
+                    result["calculated_saves"] = actual_saves
         if expected_totals is not None:
             main = {c.get("r"): c for c in roots["主要"].iter(f"{{{NS}}}c")}
             actuals = {}

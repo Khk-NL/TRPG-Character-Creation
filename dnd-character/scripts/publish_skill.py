@@ -12,6 +12,7 @@ FILES = (
     "SKILL.md", "README.md", "agents/openai.yaml", "assets/intake-form.html",
     "references/rules.md", "references/plan-schema.md", "references/template-field-map.md",
     "references/template-known-issues.md",
+    "references/magic-items.md",
     "scripts/fill_character.py", "scripts/publish_skill.py",
 )
 
