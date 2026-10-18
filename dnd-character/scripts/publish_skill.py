@@ -13,6 +13,7 @@ FILES = (
     "references/rules.md", "references/plan-schema.md", "references/template-field-map.md",
     "references/template-known-issues.md",
     "references/magic-items.md",
+    "references/build-decisions.md", "references/spell-sheet-guide.md",
     "scripts/fill_character.py", "scripts/publish_skill.py",
 )
 

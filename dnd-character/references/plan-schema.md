@@ -61,6 +61,33 @@
 
 技能名称采用卡面中文：运动、特技、巧手、隐匿、奥秘、历史、调查、自然、宗教、驯兽、洞悉、医药、察觉、求生、欺瞒、威吓、表演、游说。专精项也要出现在 `skill_proficiencies`。脚本验证数值、版次、格位和常见规则冲突；职业选项、技能来源、专长和法术数量仍需 Agent 对照所选规则书审核。
 
+## 建卡决策记录
+
+Agent 代选技能、熟练或其他关键选项时填写 `build_strategy`；两版均支持，不改变已有字段与schema版本。玩家已完整指定全部选择时可以省略。具体决策流程见[选择与配合](build-decisions.md)。
+
+```json
+{
+  "build_strategy": {
+    "primary_role": "近战前排",
+    "secondary_role": "探索观察",
+    "party_context": "未知；不假设队友提供侦察或治疗",
+    "skill_sources": {
+      "运动": "士兵背景", "威吓": "士兵背景",
+      "洞悉": "圣武士职业选择", "宗教": "圣武士职业选择", "察觉": "人类自由技能"
+    },
+    "expertise_sources": {},
+    "tool_sources": {"骰子组": "士兵背景"},
+    "choices": [
+      {"choice": "用人类自由技能取得察觉", "reason": "队伍未知，补充探索时观察周围的手段",
+       "synergy": "职业自选分配洞悉、宗教，避免重复士兵已有的运动与威吓",
+       "tradeoff": "没有选择其他自由技能；威吓虽由背景授予，低魅力下不以此承担主要交涉"}
+    ]
+  }
+}
+```
+
+这是局部示例，必须随实际角色的最终清单调整，不能独立建卡。`primary_role`、`party_context` 和非空 `choices` 必填；`secondary_role` 可省略。`skill_sources`、`expertise_sources`、`tool_sources` 分别逐项对应最终 `skill_proficiencies`、`skill_expertise`、`tools`，没有该类熟练时可省略或填空对象；来源说明不能空白。`choices` 每项有 `choice` 与 `reason`，`synergy`、`tradeoff` 按真实情况选填，不要求每项都存在联动。脚本核对名称覆盖和结构，并写入战斗速查，不替代对候选范围、数量、规则来源和组合效果的核查，也不自动修改玩家选择。
+
 ## 5R 魔法装备的计算输入
 
 出现魔法物品时先读[魔法物品核对与落卡](magic-items.md)。以下字段只记录已获准且当前启用的加值，不依物品名称自动推断：

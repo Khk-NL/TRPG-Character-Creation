@@ -460,6 +460,36 @@ def patch(template: Path, output: Path, changes: dict[str, dict[str, str | int |
             Path(temporary).unlink(missing_ok=True)
 
 
+def validate_build_strategy(plan: dict[str, Any]) -> None:
+    """Check provenance consistency; rule legality and tactical merit remain Agent decisions."""
+    if "build_strategy" not in plan:
+        return
+    strategy = plan["build_strategy"]
+    if not isinstance(strategy, dict):
+        raise PlanError("build_strategy 须为建卡决策对象")
+    for key in ("primary_role", "party_context"):
+        if not isinstance(strategy.get(key), str) or not strategy[key].strip():
+            raise PlanError(f"build_strategy.{key} 须填写；队伍信息不明时明确写未知")
+    if "secondary_role" in strategy and not isinstance(strategy["secondary_role"], str):
+        raise PlanError("build_strategy.secondary_role 须为文字")
+    for key, selected in (("skill_sources", "skill_proficiencies"),
+                          ("expertise_sources", "skill_expertise"), ("tool_sources", "tools")):
+        sources = strategy.get(key, {})
+        if not isinstance(sources, dict) or any(not isinstance(v, str) or not v.strip() for v in sources.values()):
+            raise PlanError(f"build_strategy.{key} 须为名称到非空来源说明的对象")
+        if set(sources) != set(plan.get(selected, [])):
+            raise PlanError(f"build_strategy.{key} 须逐项覆盖最终 {selected}，不得缺项或多项")
+    choices = strategy.get("choices")
+    if not isinstance(choices, list) or not choices:
+        raise PlanError("build_strategy.choices 须记录至少一项实际代选的选择与理由")
+    for choice in choices:
+        if not isinstance(choice, dict) or any(not isinstance(choice.get(k), str) or not choice[k].strip()
+                                               for k in ("choice", "reason")):
+            raise PlanError("build_strategy.choices 每项须有非空 choice、reason")
+        if any(k in choice and not isinstance(choice[k], str) for k in ("synergy", "tradeoff")):
+            raise PlanError("选择的 synergy、tradeoff 须为文字；无配合或取舍时可省略")
+
+
 def validate_plan(plan: dict[str, Any]) -> dict[str, Any]:
     if plan.get("kind") != "dnd-character-plan" or plan.get("schema_version") not in (1, 2):
         raise PlanError("需要 dnd-character-plan schema_version 1/2 计划")
@@ -511,6 +541,7 @@ def validate_plan(plan: dict[str, Any]) -> dict[str, Any]:
         raise PlanError("5R 需要注明背景授予的起源专长（feats[].type=origin）")
     if ruleset == "5e" and any(str(x.get("type", "")).lower() == "origin" for x in plan.get("feats", [])):
         raise PlanError("5E 不自动取得 2024 起源专长；请按 2014 版重选")
+    validate_build_strategy(plan)
     details = validate_5r_details(plan, level) if ruleset == "5r" else {}
     return {"ruleset": ruleset, "basic": basic, "level": level, "base": base, "bonus": bonus,
             "growth": growth, "other": other, "final": final, "skills": skills,
@@ -598,8 +629,12 @@ def build_5r(plan: dict[str, Any], valid: dict[str, Any]) -> dict[str, dict[str,
             backpack[f"{weight_col}{row}"] = item["unit_weight"]
             backpack[f"{count_col}{row}"] = item["quantity"]
     spellbook: dict[str, str | int] = {}
-    for i, spell in enumerate(names(plan, "known_spells")):
-        if i >= 78: raise PlanError("5R 法术书最多放 78 道法术")
+    lookup_spells = list(dict.fromkeys(names(plan, "known_spells") + names(plan, "cantrips") +
+                         [x["name"] for x in valid["prepared_spells"]] +
+                         [x["name"] for x in valid["free_cast_spells"]]))
+    if len(lookup_spells) > 78:
+        raise PlanError("5R 法术书查询索引（已知、戏法、准备、免费合并去重）最多放78道法术")
+    for i, spell in enumerate(lookup_spells):
         spellbook[f"X{3+i}"] = spell
     free_slots = [f"Q{row}" for row in range(66, 74)]
     prepared_slots = ([f"Y{row}" for row in range(66, 74)] +
@@ -745,6 +780,22 @@ def output_path(plan: dict[str, Any], requested: Path | None) -> Path:
 def combat_reference(plan: dict[str, Any], valid: dict[str, Any]) -> str:
     basic = valid["basic"]
     lines = [f"# {basic['name']} · 战斗速查", "", f"规则：DND {valid['ruleset'].upper()}；等级：{valid['level']}", ""]
+    strategy = plan.get("build_strategy")
+    if strategy:
+        roles = strategy["primary_role"] + (f"；辅助贡献：{strategy['secondary_role']}" if strategy.get("secondary_role") else "")
+        lines += ["## 建卡取舍", "", f"主要定位：{roles}", f"队伍信息：{strategy['party_context']}", ""]
+        for title, key in (("技能", "skill_sources"), ("专精", "expertise_sources"), ("工具", "tool_sources")):
+            if strategy.get(key):
+                lines.append(f"{title}来源：" + "；".join(f"{name}：{source}" for name, source in strategy[key].items()))
+        lines.append("")
+        for choice in strategy["choices"]:
+            detail = f"- {choice['choice']}：{choice['reason']}"
+            if choice.get("synergy"):
+                detail += f" 配合：{choice['synergy']}"
+            if choice.get("tradeoff"):
+                detail += f" 取舍：{choice['tradeoff']}"
+            lines.append(detail)
+        lines.append("")
     if valid["ruleset"] == "5r":
         combat = valid["combat"]
         lines += ["## 卡面计算输入", "",
