@@ -113,7 +113,7 @@
 
     <section class="card">
       <h2>生成建卡请求</h2>
-      <p class="hint">在 Codex 中输入 <code>$coc7-investigator</code>；在已安装此 Skill 的 DeepSeek Harness 中输入 <code>/coc7-investigator</code>。随后粘贴 JSON 或附上下载的文件。这个 JSON 是给 Agent 的简短请求，不能直接传给 <code>fill</code>。</p>
+      <p class="hint">在 Codex 中输入 <code>$trpg-character</code>，随后粘贴 JSON 或附上下载的文件。这个 JSON 是给 Agent 的简短请求，不能直接传给 <code>fill</code>。</p>
       <div class="actions">
         <button type="submit">生成 JSON</button>
         <button type="button" id="copyBtn" class="secondary">复制 JSON</button>
@@ -167,7 +167,7 @@
       </details>
       <section class="card">
         <h2>生成建卡请求</h2>
-        <p class="hint">将 JSON 交给 <code>$dnd-character</code>；Agent 会按上方选定的 5E 或 5R 规则补全人物卡。</p>
+        <p class="hint">将 JSON 交给 <code>$trpg-character</code>；Agent 会按上方选定的 5E 或 5R 规则补全人物卡。</p>
         <div class="actions">
           <button type="submit">生成 JSON</button>
           <button type="button" id="dnd-copy" class="secondary">复制 JSON</button>
@@ -350,7 +350,7 @@
         return;
       }
     }
-    note("JSON 已复制。请在 Codex 中调用 $coc7-investigator，或在 DeepSeek Harness 中调用 /coc7-investigator，再粘贴。");
+    note("JSON 已复制。请在 Codex 中调用 $trpg-character，再粘贴。");
   });
   document.getElementById("downloadBtn").addEventListener("click", () => {
     if (!makeRequest()) return;

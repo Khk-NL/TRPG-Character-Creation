@@ -1,0 +1,4 @@
+interface:
+  display_name: "TRPG 人物自动建卡"
+  short_description: "一个入口创建 COC 7版、DND 5E 或 DND 5R 人物卡"
+  default_prompt: "使用 $trpg-character，根据我填写的表单或角色设定生成对应规则的人物卡。"
