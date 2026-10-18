@@ -1,53 +1,495 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DND 5E / 5R 建卡资料</title>
-<style>
-:root{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:#23343d;background:#f1f4f4}*{box-sizing:border-box}body{margin:0}main{max-width:880px;margin:auto;padding:25px 17px 55px}h1{font-size:30px;margin:0 0 8px}h2{font-size:18px;margin:0 0 16px;color:#24485e}p{line-height:1.6;margin:0 0 10px}.hint{font-size:14px;color:#526673}.card{background:#fff;border:1px solid #cfdbdc;border-radius:12px;padding:20px;margin:16px 0;box-shadow:0 3px 10px #173c4a0a}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}.wide{grid-column:1/-1}label{display:block;font-size:14px;font-weight:600;margin-bottom:6px}input,select,textarea{width:100%;padding:10px;border:1px solid #aabdc2;border-radius:7px;font:inherit;background:#fff;color:inherit}textarea{min-height:105px;resize:vertical}#preview{min-height:230px;font:13px/1.5 Consolas,monospace}.row{display:flex;gap:14px;flex-wrap:wrap}.row label{display:flex;gap:6px;align-items:center;font-weight:400}.row input{width:auto}details summary{font-size:18px;font-weight:700;cursor:pointer;color:#24485e}details[open] summary{margin-bottom:20px}button{border:1px solid #24485e;background:#24485e;color:#fff;border-radius:7px;padding:10px 15px;font:inherit;cursor:pointer}button.secondary{background:white;color:#24485e}button:disabled{background:#d5dedf;color:#66747a;border-color:#d5dedf;cursor:not-allowed}.actions{display:flex;gap:9px;flex-wrap:wrap;margin:14px 0}#status{min-height:1.5em;color:#236846;font-size:14px}#status.error{color:#ae3027}[hidden]{display:none!important}code{background:#e4ecec;padding:2px 4px;border-radius:4px}@media(max-width:600px){.grid{grid-template-columns:1fr}}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TRPG 人物建卡资料</title>
+  <style>
+    :root { color-scheme: light; font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif; background: #f4f1e9; color: #242b31; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { max-width: 960px; margin: 0 auto; padding: 28px 20px 56px; }
+    header { border-bottom: 2px solid #263e43; padding-bottom: 19px; margin-bottom: 24px; }
+    h1 { font-size: clamp(26px, 4vw, 38px); margin: 0 0 9px; letter-spacing: .02em; }
+    h2 { font-size: 18px; margin: 0 0 17px; color: #27474b; }
+    p { line-height: 1.65; margin: 0; }
+    .hint { color: #596269; font-size: 14px; }
+    .card { background: #fffdf8; border: 1px solid #d8d2c3; border-radius: 14px; padding: 22px; margin: 18px 0; box-shadow: 0 3px 12px #17282b0c; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    label { display: block; font-size: 14px; font-weight: 650; margin-bottom: 7px; }
+    label .optional { font-weight: 400; color: #697276; }
+    input, textarea, select { width: 100%; border: 1px solid #aaa99f; border-radius: 8px; padding: 10px 11px; font: inherit; background: white; color: inherit; }
+    input:focus, textarea:focus, select:focus { outline: 2px solid #51838a; outline-offset: 1px; }
+    textarea { min-height: 130px; resize: vertical; line-height: 1.55; }
+    #preview, #dnd-preview { min-height: 240px; font: 13px/1.5 Consolas, "Cascadia Code", monospace; }
+    .span-all { grid-column: 1 / -1; }
+    .radio-row { display: flex; gap: 18px; flex-wrap: wrap; margin: 2px 0 18px; }
+    .radio-row label { display: flex; align-items: center; gap: 7px; margin: 0; font-weight: 500; }
+    .radio-row input { width: auto; }
+    [hidden] { display: none !important; }
+    details.card { padding-top: 17px; }
+    details.card summary { cursor: pointer; font-weight: 700; color: #27474b; font-size: 18px; }
+    details.card[open] summary { margin-bottom: 20px; }
+    #statsPaste { min-height: 150px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+    button { border: 1px solid #1d4144; background: #284e50; color: white; border-radius: 8px; padding: 11px 16px; font: inherit; cursor: pointer; }
+    button.secondary { background: #fff; color: #284e50; }
+    button:hover { filter: brightness(1.1); }
+    #status, #dnd-status { min-height: 1.6em; margin-top: 12px; font-size: 14px; color: #205e46; }
+    #status.error, #dnd-status.error { color: #a12d24; }
+    code { background: #e8ece9; border-radius: 4px; padding: 1px 5px; }
+    @media (max-width: 700px) { .grid, .grid.two { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 500px) { .grid, .grid.two { grid-template-columns: 1fr; } main { padding: 20px 14px 36px; } }
+  </style>
 </head>
-<body><main>
-<header><h1>DND 人物建卡资料</h1><p>先确定使用 2014 版 5E 还是 2024 修订版 5R，再填写已知设定。将生成的 JSON 交给 <code>$dnd-character</code>，由 Agent 根据公告、规则和你的选择规划并填卡。</p><p class="hint">离线页面；不会上传资料。规则版本必须明确，5R 模板不能用来生成 5E 卡。</p></header>
-<form id="form">
-<section class="card"><h2>规则与基础人设</h2><div class="grid">
-<div><label for="ruleset">规则版本 *</label><select id="ruleset" required><option value="">请选择</option><option value="5r">DND 5R / 2024 修订版</option><option value="5e">DND 5E / 2014 版</option></select></div>
-<div><label for="name">角色名 *</label><input id="name" required></div>
-<div><label for="gender">性别或性别表达</label><input id="gender"></div>
-<div><label for="class">职业 *</label><input id="class" required placeholder="例如：战士、吟游诗人"></div>
-<div><label for="species">种族 *</label><input id="species" required placeholder="例如：人类、半身人"></div>
-<div><label for="background">背景</label><input id="background" placeholder="不确定可留空，由 Agent 依人物经历建议"></div>
-<div class="wide"><label for="announcement">团公告或 DM 公告 *</label><textarea id="announcement" required placeholder="粘贴战役设定、起始等级、允许规则来源、禁用选项与公开导入"></textarea></div>
-</div></section>
-<section class="card"><h2>六项属性</h2><div class="row" role="radiogroup" aria-label="属性生成方式"><label><input type="radio" name="abilityMethod" value="standard_array" checked> 标准数组</label><label><input type="radio" name="abilityMethod" value="rolled"> 已掷好，一键粘贴</label><label><input type="radio" name="abilityMethod" value="point_buy"> 购点制</label></div><p class="hint">标准数组与购点制由 Agent 根据职业、人设和 DM 要求规划；掷骰模式请粘贴六项基础值，不包含 5E 种族或 5R 背景加值。</p><div id="rolledBox" hidden><label for="scoresPaste">基础属性 *</label><textarea id="scoresPaste" placeholder="力量 15 敏捷 13 体质 14 智力 10 感知 12 魅力 8"></textarea></div></section>
-<details class="card" id="optional"><summary>展开更多可选信息</summary><div class="grid">
-<div><label for="level">起始等级</label><input id="level" type="number" min="1" max="20" placeholder="不填时从公告推断，仍无法确定按 1 级"></div>
-<div><label for="subclass">子职</label><input id="subclass"></div>
-<div><label for="player">玩家名</label><input id="player"></div>
-<div><label for="groupName">团名</label><input id="groupName"></div>
-<div><label for="age">年龄</label><input id="age" type="number" min="1"></div>
-<div><label for="alignment">阵营</label><input id="alignment"></div>
-<div><label for="hometown">故乡</label><input id="hometown"></div>
-<div><label for="faith">信仰</label><input id="faith"></div>
-<div class="wide"><label for="persona">人物设定与背景补充</label><textarea id="persona" placeholder="性格、经历、外貌、关系、必须保留的设定"></textarea></div>
-<div class="wide"><label for="dmRequirements">DM/KP 要求</label><textarea id="dmRequirements" placeholder="房规、禁用选项、允许书籍、属性生成方式、法术与装备限制"></textarea></div>
-<div class="wide"><label for="outputPath">保存路径</label><input id="outputPath" placeholder="目录或完整 .xlsx 路径；留空使用默认输出目录"></div>
-</div></details>
-<section class="card"><h2>生成建卡请求</h2><p class="hint">JSON 是给 Agent 的建卡请求，不是可直接传给填卡脚本的完整计划。Agent 还需确定等级特性、熟练、装备、法术等。</p><div class="actions"><button type="submit">生成 JSON</button><button type="button" id="copy" class="secondary">复制</button><button type="button" id="download" class="secondary">下载</button><button type="button" id="import" class="secondary">导入旧 JSON</button></div><input type="file" id="importFile" accept=".json,application/json" hidden><p id="status" role="status" aria-live="polite"></p><label for="preview">预览</label><textarea id="preview" readonly></textarea></section>
-</form></main>
+<body>
+<main>
+  <header>
+    <h1>TRPG 人物建卡资料</h1>
+    <p>选择规则类型，填写已确定的信息，再将生成的 JSON 交给对应的建卡 Agent。</p>
+    <p class="hint">此页面离线运行；不会上传或保存你填写的内容。带 * 的项目必须填写。</p>
+  </header>
+
+  <section class="card">
+    <h2><label for="gameType">规则类型 *</label></h2>
+    <select id="gameType" aria-controls="cocPanel dndPanel">
+      <option value="coc">COC 7版</option>
+      <option value="dnd5e">DND 5E / 2014版</option>
+      <option value="dnd5r">DND 5R / 2024修订版</option>
+      <option value="coj" disabled>COJ · 待开发</option>
+    </select>
+  </section>
+  <section id="cocPanel">
+  <form id="intakeForm">
+    <section class="card">
+      <h2>基础人设</h2>
+      <div class="grid">
+        <div><label for="name">姓名 *</label><input id="name" required autocomplete="off"></div>
+        <div><label for="gender">性别或性别表达 *</label><input id="gender" required autocomplete="off"></div>
+        <div><label for="occupation">职业 *</label><input id="occupation" required placeholder="例如：记者、会计师" autocomplete="off"></div>
+        <div class="span-all"><label for="announcement">模组公告或公开导入 *</label><textarea id="announcement" required placeholder="粘贴模组公告中玩家可知的时代、地点、事件和导入背景；时代由公告推断。"></textarea></div>
+      </div>
+    </section>
+
+    <details class="card" id="optionalDetails">
+      <summary>更多可选信息</summary>
+      <div class="grid">
+        <div><label for="age">年龄 <span class="optional">可选</span></label><input id="age" type="number" min="15" max="89" step="1"></div>
+        <div><label for="player">玩家名 <span class="optional">可选</span></label><input id="player"></div>
+        <div><label for="nationality">国籍 <span class="optional">可选</span></label><input id="nationality"></div>
+        <div><label for="residence">现居地 <span class="optional">可选</span></label><input id="residence"></div>
+        <div><label for="hometown">故乡 <span class="optional">可选</span></label><input id="hometown"></div>
+        <div><label for="groupName">团名 <span class="optional">可选；用于文件名</span></label><input id="groupName" placeholder="不填时由公告标题推断"></div>
+        <div class="span-all"><label for="persona">补充人设 <span class="optional">外貌、性格、关系、经历等</span></label><textarea id="persona" placeholder="写下你已确定的设定；没有可留空。"></textarea></div>
+        <div class="span-all"><label for="backgroundNotes">背景补充说明 <span class="optional">可选</span></label><textarea id="backgroundNotes" placeholder="例如：必须保留的家人、经历、性格矛盾、不能改动的设定。"></textarea></div>
+        <div class="span-all"><label for="keeperRequirements">KP 要求 <span class="optional">可选</span></label><textarea id="keeperRequirements" placeholder="例如：禁用的职业或武器、年代限制、技能上限、房规、背景禁忌。"></textarea></div>
+        <div class="span-all"><label for="outputPath">希望保存的位置 <span class="optional">可选；目录或 .xlsx 文件</span></label><input id="outputPath" placeholder="例如 D:\QQ\人物卡（留空使用任务默认输出目录）"></div>
+      </div>
+    </details>
+
+    <section class="card">
+      <h2>COC5 属性</h2>
+      <div class="radio-row" role="radiogroup" aria-label="属性是否已完成七版年龄调整">
+        <label><input type="radio" name="statMode" value="raw" checked> COC5 原始属性，按年龄调整</label>
+        <label><input type="radio" name="statMode" value="final"> 已调整好的七版最终属性</label>
+      </div>
+      <p class="hint" style="margin-bottom:16px">最终属性模式保留你填的 EDU、Luck 等数值；原始属性模式由 skill 处理年龄规则。</p>
+      <div class="radio-row" role="radiogroup" aria-label="属性填写方式">
+        <label><input type="radio" name="statEntryMode" value="paste" checked> 整段粘贴</label>
+        <label><input type="radio" name="statEntryMode" value="manual"> 逐项填写</label>
+      </div>
+      <div id="pasteFields">
+        <label for="statsPaste">粘贴 COC5 属性结果 *</label>
+        <textarea id="statsPaste" required placeholder="力量 55 体质 60 体型 65 敏捷 70 外貌 55 智力 75 意志 60 教育 70 幸运 50"></textarea>
+        <p class="hint">支持中文属性名、STR/CON 等英文缩写，以及“属性名：数值”格式。也可以粘贴 .coc5 的多组结果，再选择其中一组。</p>
+        <div id="groupChoice" hidden style="margin-top:16px">
+          <label for="statGroup">选择要使用的属性组 *</label>
+          <select id="statGroup"><option value="">请选择一组</option></select>
+        </div>
+      </div>
+      <div class="grid" id="stats" hidden></div>
+    </section>
+
+    <section class="card">
+      <h2>生成建卡请求</h2>
+      <p class="hint">在 Codex 中输入 <code>$coc7-investigator</code>；在已安装此 Skill 的 DeepSeek Harness 中输入 <code>/coc7-investigator</code>。随后粘贴 JSON 或附上下载的文件。这个 JSON 是给 Agent 的简短请求，不能直接传给 <code>fill</code>。</p>
+      <div class="actions">
+        <button type="submit">生成 JSON</button>
+        <button type="button" id="copyBtn" class="secondary">复制 JSON</button>
+        <button type="button" id="downloadBtn" class="secondary">下载 JSON</button>
+        <button type="button" id="importBtn" class="secondary">导入旧 JSON</button>
+      </div>
+      <input id="importFile" type="file" accept=".json,application/json" hidden>
+      <p id="status" role="status" aria-live="polite"></p>
+      <label for="preview">预览</label>
+      <textarea id="preview" readonly placeholder="填写上方资料后点击“生成 JSON”。"></textarea>
+    </section>
+  </form>
+  </section>
+  <section id="dndPanel" hidden>
+    <form id="dndForm">
+      <section class="card">
+        <h2>DND 基础人设</h2>
+        <div class="grid two">
+          <div><label for="dnd-name">角色名 *</label><input id="dnd-name" required></div>
+          <div><label for="dnd-gender">性别或性别表达</label><input id="dnd-gender"></div>
+          <div><label for="dnd-class">职业 *</label><input id="dnd-class" required placeholder="例如：战士、吟游诗人"></div>
+          <div><label for="dnd-species">种族 *</label><input id="dnd-species" required placeholder="例如：人类、半身人"></div>
+          <div><label for="dnd-background">背景</label><input id="dnd-background" placeholder="不确定可留空，由 Agent 建议"></div>
+          <div class="span-all"><label for="dnd-announcement">团公告或 DM 公告 *</label><textarea id="dnd-announcement" required placeholder="粘贴战役设定、起始等级、允许来源、禁用选项与公开导入"></textarea></div>
+        </div>
+      </section>
+      <section class="card">
+        <h2>六项属性</h2>
+        <div class="radio-row" role="radiogroup" aria-label="DND 属性生成方式">
+          <label><input type="radio" name="dndAbilityMethod" value="standard_array" checked> 标准数组</label>
+          <label><input type="radio" name="dndAbilityMethod" value="rolled"> 已掷好，一键粘贴</label>
+          <label><input type="radio" name="dndAbilityMethod" value="point_buy"> 购点制</label>
+        </div>
+        <p class="hint">标准数组与购点制由 Agent 规划；掷骰模式请粘贴六项基础值，不包含 5E 种族或 5R 背景加值。</p>
+        <div id="dnd-rolledBox" hidden><label for="dnd-scoresPaste">基础属性 *</label><textarea id="dnd-scoresPaste" placeholder="力量 15 敏捷 13 体质 14 智力 10 感知 12 魅力 8"></textarea></div>
+      </section>
+      <details class="card" id="dnd-optional"><summary>展开更多可选信息</summary>
+        <div class="grid two">
+          <div><label for="dnd-level">起始等级</label><input id="dnd-level" type="number" min="1" max="20" placeholder="不填时从公告推断，仍不明确按 1 级"></div>
+          <div><label for="dnd-subclass">子职</label><input id="dnd-subclass"></div>
+          <div><label for="dnd-player">玩家名</label><input id="dnd-player"></div>
+          <div><label for="dnd-groupName">团名</label><input id="dnd-groupName"></div>
+          <div><label for="dnd-age">年龄</label><input id="dnd-age" type="number" min="1"></div>
+          <div><label for="dnd-alignment">阵营</label><input id="dnd-alignment"></div>
+          <div><label for="dnd-hometown">故乡</label><input id="dnd-hometown"></div>
+          <div><label for="dnd-faith">信仰</label><input id="dnd-faith"></div>
+          <div class="span-all"><label for="dnd-persona">人物设定与背景补充</label><textarea id="dnd-persona" placeholder="性格、经历、外貌、关系、必须保留的设定"></textarea></div>
+          <div class="span-all"><label for="dnd-dmRequirements">DM/KP 要求</label><textarea id="dnd-dmRequirements" placeholder="房规、禁用选项、允许书籍、装备与法术限制"></textarea></div>
+          <div class="span-all"><label for="dnd-outputPath">保存路径</label><input id="dnd-outputPath" placeholder="目录或完整 .xlsx 路径；留空使用默认输出目录"></div>
+        </div>
+      </details>
+      <section class="card">
+        <h2>生成建卡请求</h2>
+        <p class="hint">将 JSON 交给 <code>$dnd-character</code>；Agent 会按上方选定的 5E 或 5R 规则补全人物卡。</p>
+        <div class="actions">
+          <button type="submit">生成 JSON</button>
+          <button type="button" id="dnd-copy" class="secondary">复制 JSON</button>
+          <button type="button" id="dnd-download" class="secondary">下载 JSON</button>
+          <button type="button" id="dnd-import" class="secondary">导入旧 JSON</button>
+        </div>
+        <input type="file" id="dnd-importFile" accept=".json,application/json" hidden>
+        <p id="dnd-status" role="status" aria-live="polite"></p>
+        <label for="dnd-preview">预览</label><textarea id="dnd-preview" readonly></textarea>
+      </section>
+    </form>
+  </section>
+</main>
 <script>
-const form=document.getElementById('form'), preview=document.getElementById('preview'), status=document.getElementById('status');
-const $=id=>document.getElementById(id), val=id=>$(id).value.trim();
-const abilities=['STR','DEX','CON','INT','WIS','CHA'];
-const aliases={STR:'STR',DEX:'DEX',CON:'CON',INT:'INT',WIS:'WIS',CHA:'CHA',力量:'STR',敏捷:'DEX',体质:'CON',智力:'INT',感知:'WIS',魅力:'CHA'};
-function parseScores(text){let result={};const pattern=/(STR|DEX|CON|INT|WIS|CHA|力量|敏捷|体质|智力|感知|魅力)\s*(?:[:：=]|\s)\s*(\d{1,2})(?!\d)/gi;for(const m of text.matchAll(pattern))result[aliases[m[1].toUpperCase()]]=Number(m[2]);if(!Object.keys(result).length&&!/[A-Za-z\u4e00-\u9fff]/.test(text)){const nums=text.match(/\d{1,2}/g)||[];if(nums.length===6)abilities.forEach((a,i)=>result[a]=Number(nums[i]));}if(abilities.some(a=>!Number.isInteger(result[a])||result[a]<3||result[a]>20))throw Error('请粘贴六项 3–20 的基础属性：STR、DEX、CON、INT、WIS、CHA。');return result;}
-function syncMode(){const rolled=form.elements.abilityMethod.value==='rolled';$('rolledBox').hidden=!rolled;$('scoresPaste').required=rolled;}for(const radio of form.elements.abilityMethod)radio.addEventListener('change',syncMode);syncMode();
-function note(message,error=false){status.textContent=message;status.classList.toggle('error',error);}
-function make(){if(!form.reportValidity())return null;const basic={name:val('name'),class:val('class'),species:val('species')};for(const key of ['gender','background','subclass','player','alignment','hometown','faith'])if(val(key))basic[key]=val(key);if(val('level'))basic.level=Number(val('level'));if(val('age'))basic.age=Number(val('age'));if(val('groupName'))basic.group_name=val('groupName');const request={kind:'dnd-character-intake',schema_version:1,ruleset:val('ruleset'),basic,announcement:val('announcement'),ability_method:form.elements.abilityMethod.value};if(request.ability_method==='rolled'){try{request.scores_base=parseScores(val('scoresPaste'));}catch(error){note(error.message,true);$('scoresPaste').focus();return null;}}if(val('persona'))request.persona=val('persona');if(val('dmRequirements'))request.dm_requirements=val('dmRequirements');if(val('outputPath'))request.output_path=val('outputPath');preview.value=JSON.stringify(request,null,2);note('JSON 已生成。复制后交给 Agent。');return request;}
-form.addEventListener('submit',e=>{e.preventDefault();make();});
-$('copy').addEventListener('click',async()=>{if(!make())return;try{await navigator.clipboard.writeText(preview.value);note('已复制。');}catch{preview.select();note('自动复制受限，请手动复制预览内容。',true);}});
-$('download').addEventListener('click',()=>{const request=make();if(!request)return;const url=URL.createObjectURL(new Blob([preview.value],{type:'application/json;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`dnd-${request.ruleset}-建卡资料.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);note('已下载。');});
-$('import').addEventListener('click',()=>$('importFile').click());
-$('importFile').addEventListener('change',async e=>{const file=e.target.files[0];if(!file)return;try{const data=JSON.parse(await file.text());if(data.kind!=='dnd-character-intake'||data.schema_version!==1)throw Error('不是本表单的建卡请求');for(const key of ['ruleset','announcement','persona','outputPath'])$(key).value=data[key==='outputPath'?'output_path':key]||'';$('dmRequirements').value=data.dm_requirements||'';for(const key of ['name','gender','class','species','background','subclass','player','alignment','hometown','faith','level','age'])$(key).value=data.basic?.[key]??'';$('groupName').value=data.basic?.group_name||'';form.elements.abilityMethod.value=data.ability_method||'standard_array';$('scoresPaste').value=data.scores_base?abilities.map(a=>`${a} ${data.scores_base[a]}`).join(' '):'';syncMode();$('optional').open=!!(data.persona||data.dm_requirements||data.output_path||data.basic?.level||data.basic?.subclass);make();}catch(error){note(`导入失败：${error.message}`,true);}e.target.value='';});
+  const gameType = document.getElementById("gameType");
+  function selectGame(value) {
+    gameType.value = value;
+    document.getElementById("cocPanel").hidden = value !== "coc";
+    document.getElementById("dndPanel").hidden = value === "coc";
+  }
+  gameType.addEventListener("change", () => selectGame(gameType.value));
+  selectGame(location.pathname.includes("/dnd-character/") ? "dnd5r" : "coc");
+  const statNames = ["STR", "CON", "SIZ", "DEX", "APP", "INT", "POW", "EDU", "Luck"];
+  const form = document.getElementById("intakeForm");
+  const preview = document.getElementById("preview");
+  const status = document.getElementById("status");
+  const stats = document.getElementById("stats");
+  const statsPaste = document.getElementById("statsPaste");
+  const pasteFields = document.getElementById("pasteFields");
+  const groupChoice = document.getElementById("groupChoice");
+  const statGroup = document.getElementById("statGroup");
+  const optionalDetails = document.getElementById("optionalDetails");
+  for (const name of statNames) {
+    const wrapper = document.createElement("div");
+    const label = document.createElement("label");
+    const input = document.createElement("input");
+    input.id = `stat-${name}`;
+    input.type = "number";
+    input.min = "1";
+    input.max = "100";
+    input.step = "1";
+    input.required = false;
+    label.htmlFor = input.id;
+    label.textContent = `${name} *`;
+    wrapper.append(label, input);
+    stats.append(wrapper);
+  }
+  const field = id => document.getElementById(id).value.trim();
+  const statAliases = {
+    STR: "STR", CON: "CON", SIZ: "SIZ", DEX: "DEX", APP: "APP",
+    INT: "INT", POW: "POW", EDU: "EDU", LUCK: "Luck",
+    力量: "STR", 体质: "CON", 体型: "SIZ", 敏捷: "DEX", 外貌: "APP",
+    智力: "INT", 意志: "POW", 教育: "EDU", 幸运: "Luck", 幸运值: "Luck"
+  };
+  function parsePastedStatGroups(text) {
+    const groups = [];
+    let current = {};
+    const pattern = /(STR|CON|SIZ|DEX|APP|INT|POW|EDU|LUCK|力量|体质|体型|敏捷|外貌|智力|意志|教育|幸运值|幸运)\s*(?:[（(]\s*(?:STR|CON|SIZ|DEX|APP|INT|POW|EDU|LUCK)\s*[）)])?\s*[:：=]?\s*(\d{1,3})(?!\d)/gi;
+    for (const match of text.matchAll(pattern)) {
+      const key = statAliases[match[1].toUpperCase()];
+      if (key in current) {
+        groups.push(current);
+        current = {};
+      }
+      current[key] = Number(match[2]);
+    }
+    if (Object.keys(current).length) groups.push(current);
+    if (groups.length === 0 && !/[A-Za-z\u4e00-\u9fff]/.test(text)) {
+      const numbers = text.match(/\d{1,3}/g) ?? [];
+      if (numbers.length && numbers.length % statNames.length === 0) {
+        for (let start = 0; start < numbers.length; start += statNames.length) {
+          const group = {};
+          statNames.forEach((name, index) => { group[name] = Number(numbers[start + index]); });
+          groups.push(group);
+        }
+      }
+    }
+    for (const [index, group] of groups.entries()) {
+      const missing = statNames.filter(name => !(name in group));
+      if (missing.length) throw new Error(`第 ${index + 1} 组未识别到：${missing.join("、")}。请粘贴完整结果，或切换为逐项填写。`);
+      const invalid = statNames.filter(name => !Number.isInteger(group[name]) || group[name] < 1 || group[name] > 100);
+      if (invalid.length) throw new Error(`第 ${index + 1} 组数值须为 1–100 的整数：${invalid.join("、")}`);
+    }
+    if (!groups.length) throw new Error("未识别到九项属性。请粘贴带属性名的完整结果，或切换为逐项填写。");
+    return groups;
+  }
+  function updateStatGroups() {
+    const previous = statGroup.value;
+    try {
+      const groups = parsePastedStatGroups(field("statsPaste"));
+      groupChoice.hidden = groups.length <= 1;
+      statGroup.required = groups.length > 1;
+      statGroup.replaceChildren(new Option("请选择一组", ""));
+      groups.forEach((group, index) => {
+        statGroup.add(new Option(`第 ${index + 1} 组 · STR ${group.STR} / INT ${group.INT} / EDU ${group.EDU} / Luck ${group.Luck}`, String(index)));
+      });
+      if (previous && Number(previous) < groups.length) statGroup.value = previous;
+    } catch {
+      groupChoice.hidden = true;
+      statGroup.required = false;
+      statGroup.replaceChildren(new Option("请选择一组", ""));
+    }
+  }
+  function parsePastedStats(text) {
+    const groups = parsePastedStatGroups(text);
+    if (groups.length > 1 && statGroup.value === "") throw new Error(`检测到 ${groups.length} 组属性，请选择要使用的一组。`);
+    return groups[groups.length > 1 ? Number(statGroup.value) : 0];
+  }
+  statsPaste.addEventListener("input", updateStatGroups);
+  function syncStatEntryMode() {
+    const pasteMode = form.elements.statEntryMode.value === "paste";
+    pasteFields.hidden = !pasteMode;
+    stats.hidden = pasteMode;
+    statsPaste.required = pasteMode;
+    for (const name of statNames) document.getElementById(`stat-${name}`).required = !pasteMode;
+    if (!pasteMode && field("statsPaste")) {
+      try {
+        const parsed = parsePastedStats(field("statsPaste"));
+        for (const name of statNames) document.getElementById(`stat-${name}`).value = parsed[name];
+      } catch { /* 保留逐项填写区的现有值 */ }
+    }
+    if (pasteMode && !field("statsPaste") && statNames.every(name => field(`stat-${name}`))) {
+      statsPaste.value = statNames.map(name => `${name} ${field(`stat-${name}`)}`).join("\n");
+      updateStatGroups();
+    }
+  }
+  for (const option of form.elements.statEntryMode) option.addEventListener("change", syncStatEntryMode);
+  syncStatEntryMode();
+  function note(message, error = false) {
+    status.textContent = message;
+    status.classList.toggle("error", error);
+  }
+  function makeRequest() {
+    if (!form.reportValidity()) return null;
+    const basic = { name: field("name"), gender: field("gender"), occupation: field("occupation") };
+    for (const key of ["player", "nationality", "residence", "hometown"]) {
+      if (field(key)) basic[key] = field(key);
+    }
+    if (field("age")) basic.age = Number(field("age"));
+    if (field("groupName")) basic.group_name = field("groupName");
+    let characteristics;
+    try {
+      if (form.elements.statEntryMode.value === "paste") {
+        characteristics = parsePastedStats(field("statsPaste"));
+      } else {
+        characteristics = {};
+        for (const name of statNames) characteristics[name] = Number(field(`stat-${name}`));
+      }
+    } catch (error) {
+      note(error.message, true);
+      statsPaste.focus();
+      return null;
+    }
+    const request = {
+      kind: "coc7-investigator-intake",
+      schema_version: 1,
+      game_type: "coc",
+      basic,
+      announcement: field("announcement"),
+      characteristics,
+      characteristics_are_final: form.elements.statMode.value === "final"
+    };
+    if (field("persona")) request.persona = field("persona");
+    if (field("backgroundNotes")) request.background_notes = field("backgroundNotes");
+    if (field("keeperRequirements")) request.keeper_requirements = field("keeperRequirements");
+    if (field("outputPath")) request.output_path = field("outputPath");
+    preview.value = JSON.stringify(request, null, 2);
+    note("JSON 已生成。可以复制后粘贴到 Agent 对话中。");
+    return request;
+  }
+  form.addEventListener("submit", event => { event.preventDefault(); makeRequest(); });
+  document.getElementById("copyBtn").addEventListener("click", async () => {
+    if (!makeRequest()) return;
+    try {
+      await navigator.clipboard.writeText(preview.value);
+    } catch {
+      preview.select();
+      if (!document.execCommand("copy")) {
+        note("浏览器限制了自动复制，请手动选中预览中的 JSON 复制。", true);
+        return;
+      }
+    }
+    note("JSON 已复制。请在 Codex 中调用 $coc7-investigator，或在 DeepSeek Harness 中调用 /coc7-investigator，再粘贴。");
+  });
+  document.getElementById("downloadBtn").addEventListener("click", () => {
+    if (!makeRequest()) return;
+    const blob = new Blob([preview.value], {type: "application/json;charset=utf-8"});
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "coc7-建卡资料.json";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    note("JSON 已下载。将文件附给 Agent 即可。");
+  });
+  document.getElementById("importBtn").addEventListener("click", () => document.getElementById("importFile").click());
+  document.getElementById("importFile").addEventListener("change", async event => {
+    const file = event.target.files[0];
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      if (data.kind !== "coc7-investigator-intake" || data.schema_version !== 1) throw new Error("不是本表单的建卡请求 JSON");
+      for (const key of ["name", "gender", "occupation", "player", "nationality", "residence", "hometown", "age"]) {
+        document.getElementById(key).value = data.basic?.[key] ?? "";
+      }
+      for (const name of statNames) document.getElementById(`stat-${name}`).value = data.characteristics?.[name] ?? "";
+      statsPaste.value = statNames.map(name => `${name} ${data.characteristics?.[name] ?? ""}`).join("\n");
+      updateStatGroups();
+      document.getElementById("announcement").value = data.announcement ?? "";
+      document.getElementById("persona").value = data.persona ?? "";
+      document.getElementById("backgroundNotes").value = data.background_notes ?? "";
+      document.getElementById("keeperRequirements").value = data.keeper_requirements ?? "";
+      document.getElementById("outputPath").value = data.output_path ?? "";
+      document.getElementById("groupName").value = data.basic?.group_name ?? "";
+      form.elements.statMode.value = data.characteristics_are_final ? "final" : "raw";
+      optionalDetails.open = ["age", "player", "nationality", "residence", "hometown", "groupName", "persona", "backgroundNotes", "keeperRequirements", "outputPath"].some(id => field(id));
+      if (makeRequest()) note("已导入旧 JSON。");
+    } catch (error) {
+      note(`导入失败：${error.message}`, true);
+    }
+    event.target.value = "";
+  });
+  (() => {
+    const dndForm = document.getElementById("dndForm");
+    const get = id => document.getElementById(`dnd-${id}`);
+    const value = id => get(id).value.trim();
+    const dndPreview = get("preview");
+    const dndStatus = get("status");
+    const abilities = ["STR", "DEX", "CON", "INT", "WIS", "CHA"];
+    const aliases = {STR:"STR", DEX:"DEX", CON:"CON", INT:"INT", WIS:"WIS", CHA:"CHA", 力量:"STR", 敏捷:"DEX", 体质:"CON", 智力:"INT", 感知:"WIS", 魅力:"CHA"};
+    function parseScores(source) {
+      const result = {};
+      const pattern = /(STR|DEX|CON|INT|WIS|CHA|力量|敏捷|体质|智力|感知|魅力)\s*(?:[:：=]|\s)\s*(\d{1,2})(?!\d)/gi;
+      for (const match of source.matchAll(pattern)) result[aliases[match[1].toUpperCase()]] = Number(match[2]);
+      if (!Object.keys(result).length && !/[A-Za-z\u4e00-\u9fff]/.test(source)) {
+        const numbers = source.match(/\d{1,2}/g) || [];
+        if (numbers.length === 6) abilities.forEach((ability, index) => { result[ability] = Number(numbers[index]); });
+      }
+      if (abilities.some(ability => !Number.isInteger(result[ability]) || result[ability] < 3 || result[ability] > 20)) {
+        throw Error("请粘贴六项 3–20 的基础属性：STR、DEX、CON、INT、WIS、CHA。");
+      }
+      return result;
+    }
+    function syncMode() {
+      const rolled = dndForm.elements.dndAbilityMethod.value === "rolled";
+      get("rolledBox").hidden = !rolled;
+      get("scoresPaste").required = rolled;
+    }
+    for (const radio of dndForm.elements.dndAbilityMethod) radio.addEventListener("change", syncMode);
+    syncMode();
+    function dndNote(message, error = false) {
+      dndStatus.textContent = message;
+      dndStatus.classList.toggle("error", error);
+    }
+    function makeDndRequest() {
+      if (!dndForm.reportValidity()) return null;
+      const basic = {name:value("name"), class:value("class"), species:value("species")};
+      for (const key of ["gender", "background", "subclass", "player", "alignment", "hometown", "faith"]) {
+        if (value(key)) basic[key] = value(key);
+      }
+      if (value("level")) basic.level = Number(value("level"));
+      if (value("age")) basic.age = Number(value("age"));
+      if (value("groupName")) basic.group_name = value("groupName");
+      const request = {
+        kind:"dnd-character-intake", schema_version:1,
+        game_type:gameType.value, ruleset:gameType.value.slice(3),
+        basic, announcement:value("announcement"),
+        ability_method:dndForm.elements.dndAbilityMethod.value
+      };
+      if (request.ability_method === "rolled") {
+        try { request.scores_base = parseScores(value("scoresPaste")); }
+        catch (error) { dndNote(error.message, true); get("scoresPaste").focus(); return null; }
+      }
+      if (value("persona")) request.persona = value("persona");
+      if (value("dmRequirements")) request.dm_requirements = value("dmRequirements");
+      if (value("outputPath")) request.output_path = value("outputPath");
+      dndPreview.value = JSON.stringify(request, null, 2);
+      dndNote("JSON 已生成。复制后交给 Agent。");
+      return request;
+    }
+    dndForm.addEventListener("submit", event => { event.preventDefault(); makeDndRequest(); });
+    get("copy").addEventListener("click", async () => {
+      if (!makeDndRequest()) return;
+      try { await navigator.clipboard.writeText(dndPreview.value); dndNote("已复制。"); }
+      catch { dndPreview.select(); dndNote("自动复制受限，请手动复制预览内容。", true); }
+    });
+    get("download").addEventListener("click", () => {
+      const request = makeDndRequest();
+      if (!request) return;
+      const url = URL.createObjectURL(new Blob([dndPreview.value], {type:"application/json;charset=utf-8"}));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `dnd-${request.ruleset}-建卡资料.json`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      dndNote("已下载。");
+    });
+    get("import").addEventListener("click", () => get("importFile").click());
+    get("importFile").addEventListener("change", async event => {
+      const file = event.target.files[0];
+      if (!file) return;
+      try {
+        const data = JSON.parse(await file.text());
+        if (data.kind !== "dnd-character-intake" || data.schema_version !== 1 || !["5e", "5r"].includes(data.ruleset)) {
+          throw Error("不是本表单支持的 DND 建卡请求");
+        }
+        selectGame(`dnd${data.ruleset}`);
+        for (const key of ["announcement", "persona"]) get(key).value = data[key] || "";
+        get("outputPath").value = data.output_path || "";
+        get("dmRequirements").value = data.dm_requirements || "";
+        for (const key of ["name", "gender", "class", "species", "background", "subclass", "player", "alignment", "hometown", "faith", "level", "age"]) {
+          get(key).value = data.basic?.[key] ?? "";
+        }
+        get("groupName").value = data.basic?.group_name || "";
+        dndForm.elements.dndAbilityMethod.value = data.ability_method || "standard_array";
+        get("scoresPaste").value = data.scores_base ? abilities.map(ability => `${ability} ${data.scores_base[ability]}`).join(" ") : "";
+        syncMode();
+        get("optional").open = !!(data.persona || data.dm_requirements || data.output_path || data.basic?.level || data.basic?.subclass);
+        if (makeDndRequest()) dndNote("已导入旧 JSON。");
+      } catch (error) { dndNote(`导入失败：${error.message}`, true); }
+      event.target.value = "";
+    });
+  })();
 </script>
-</body></html>
+</body>
+</html>

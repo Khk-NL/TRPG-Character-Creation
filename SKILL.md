@@ -9,7 +9,7 @@ description: 根据玩家提供的基础人设、模组公告和 COC5 属性结�
 
 ## 用户输入
 
-接受自然语言，或由 [离线资料表单](assets/intake-form.html) 生成的 `coc7-investigator-intake` JSON。最低输入为：姓名、性别或性别表达、职业等基础人设；模组公告或导入背景；一组能解析出 STR、CON、SIZ、DEX、APP、INT、POW、EDU、Luck 的 COC5/`.coc5` 属性。表单 JSON 是玩家请求，需先扩展为完整计划 JSON，再交给 `fill`。
+接受自然语言，或由 [离线资料表单](assets/intake-form.html) 生成的 `coc7-investigator-intake` JSON。表单顶部可在 COC、DND 5E、DND 5R 间同页切换；COC 请求的 `game_type` 为 `coc`，旧版无此字段的请求仍可使用。最低输入为：姓名、性别或性别表达、职业等基础人设；模组公告或导入背景；一组能解析出 STR、CON、SIZ、DEX、APP、INT、POW、EDU、Luck 的 COC5/`.coc5` 属性。表单 JSON 是玩家请求，需先扩展为完整计划 JSON，再交给 `fill`。
 
 年龄、国籍、住地或故乡缺失时，先从人设和公告作最小合理推断。只有年代、地点或职业存在会实质改变建卡结果的歧义时才询问用户。
 

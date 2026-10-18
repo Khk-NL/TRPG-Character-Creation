@@ -1,6 +1,6 @@
 # DND 5E / 5R 人物建卡 Skill
 
-安装到 Agent 的 skills 目录后，以 `$dnd-character` 调用；玩家可先打开 `assets/intake-form.html` 生成简短 JSON。表单 JSON 需要由 Agent 按规则扩展为完整计划，再交给 `scripts/fill_character.py`。
+安装到 Agent 的 skills 目录后，以 `$dnd-character` 调用；玩家可打开 `assets/intake-form.html`，在同一页面切换 COC、DND 5E、DND 5R 并生成简短 JSON。表单 JSON 需要由 Agent 按规则扩展为完整计划，再交给 `scripts/fill_character.py`。
 
 此仓库仅发布代码和说明。请自行将合法持有的两张原卡放到本目录的 `assets/`：
 
