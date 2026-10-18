@@ -12,6 +12,7 @@ description: 统一创建 COC 7版、DND 5E（2014）或 DND 5R（2024）新人�
 - 表单 JSON 有 `game_type` 时：`coc` 进入 COC 7版；`dnd5e` 进入 DND 5E；`dnd5r` 进入 DND 5R。DND 的 `ruleset` 应分别为 `5e` / `5r`；若 `game_type`、`kind`、`ruleset` 互相矛盾，先请玩家确认，不猜测版本。
 - 旧版 JSON 没有 `game_type` 时：`kind: coc7-investigator-intake` 进入 COC；`kind: dnd-character-intake` 进入 DND，并以 `ruleset` 确定 5E / 5R。
 - 自然语言输入按玩家明确指定的规则走。若只写「DND」而无法确定 5E / 5R，先问版本；无法确定是 COC 还是 DND 时也先问。COJ 仍未开放。
+- 在同一次建卡中确认 5R 后锁定 2024 版；后来出现 2014 链接或摘录时，只提示差异并继续 5R，不把参考资料当成切版要求。只有玩家明确要求改版才重新分流。
 
 ## 执行
 

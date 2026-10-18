@@ -8,6 +8,7 @@ import math
 import os
 import re
 import shutil
+import stat
 import tempfile
 import zipfile
 from pathlib import Path
@@ -113,17 +114,30 @@ def validate_5r_details(plan: dict[str, Any], level: int) -> dict[str, Any]:
     if ammo_count > 1:
         raise PlanError("5R 主卡弹药栏只能登记一种弹药")
 
-    prepared = plan.get("prepared_spells", [])
+    if "prepared_spells" in plan:
+        raise PlanError("5R 请将 prepared_spells 拆为 selected_prepared_spells 与 always_prepared_spells")
+    selected = plan.get("selected_prepared_spells", [])
+    always = plan.get("always_prepared_spells", [])
+    if not isinstance(selected, list) or not isinstance(always, list):
+        raise PlanError("5R 准备法术须分为两个数组")
+    prepared = selected + always
     free = plan.get("free_cast_spells", [])
-    for key, spells in (("prepared_spells", prepared), ("free_cast_spells", free)):
+    for key, spells in (("selected_prepared_spells", selected), ("always_prepared_spells", always), ("free_cast_spells", free)):
         if not isinstance(spells, list) or any(not isinstance(spell, dict) or
             not isinstance(spell.get("name"), str) or not spell["name"].strip() or
-            not isinstance(spell.get("source"), str) or not spell["source"].strip() for spell in spells):
-            raise PlanError(f"5R {key} 每项须有 name 和 source")
+            not isinstance(spell.get("source"), str) or not spell["source"].strip() or
+            isinstance(spell.get("level"), bool) or not isinstance(spell.get("level"), int) or
+            not (0 if key == "free_cast_spells" else 1) <= spell["level"] <= 9 for spell in spells):
+            raise PlanError(f"5R {key} 每项须有 name、source 和环阶 level")
         if len({spell["name"] for spell in spells}) != len(spells):
             raise PlanError(f"5R {key} 有重复法术")
-    if len(free) > 8 or len(prepared) > 26:
+    if len([spell for spell in free if spell["name"] not in {x["name"] for x in prepared}]) > 8 or len(prepared) > 26:
         raise PlanError("5R 无消耗法术最多 8 道，主卡准备法术最多 26 道")
+    if len({x["name"] for x in prepared}) != len(prepared):
+        raise PlanError("自选与额外常备法术不可重复")
+    levels_by_name = {x["name"]: x["level"] for x in prepared}
+    if any(x["name"] in levels_by_name and levels_by_name[x["name"]] != x["level"] for x in free):
+        raise PlanError("免费施放与准备法术的同名条目环阶必须一致")
     for spell in free:
         maximum = spell.get("uses_max")
         remaining = spell.get("uses_remaining")
@@ -143,8 +157,12 @@ def validate_5r_details(plan: dict[str, Any], level: int) -> dict[str, Any]:
             raise PlanError(f"专长 {feat['name']} 须注明取得来源 source")
         if str(feat.get("type", "")).lower() == "origin" and acquired != 1:
             raise PlanError(f"起源专长 {feat['name']} 应在 1 级取得")
+    for feature in plan.get("class_features", []):
+        acquired = feature.get("acquired_level")
+        if feature.get("source") not in {"class", "subclass"} or isinstance(acquired, bool) or not isinstance(acquired, int) or not 1 <= acquired <= level:
+            raise PlanError(f"职业特性 {feature['name']} 须注明 source=class/subclass 和取得等级")
 
-    for key in ("initiative_bonus", "ac_bonus"):
+    for key in ("initiative_bonus", "ac_bonus", "hp_bonus_flat"):
         value = combat.get(key)
         if isinstance(value, bool) or not isinstance(value, int) or not -20 <= value <= 20:
             raise PlanError(f"combat.{key} 须为 -20–20 的整数，未加值时填 0")
@@ -173,7 +191,58 @@ def validate_5r_details(plan: dict[str, Any], level: int) -> dict[str, Any]:
         isinstance(value, bool) or not isinstance(value, int) or value < 0 for value in currency.values()
     ):
         raise PlanError("combat.currency 须明确填写 gp、pp、ep、sp、cp 五项非负整数")
-    return {"inventory": inventory, "prepared_spells": prepared, "free_cast_spells": free, "combat": combat}
+    effects = plan.get("mechanical_effects", [])
+    if not isinstance(effects, list) or any(not isinstance(x, dict) or
+        not str(x.get("source", "")).strip() or x.get("target") not in
+        {"initiative_bonus", "ac_bonus", "hp_bonus_flat"} or
+        isinstance(x.get("amount"), bool) or not isinstance(x.get("amount"), int) for x in effects):
+        raise PlanError("mechanical_effects 须逐项列出 source、target、amount")
+    for target in ("initiative_bonus", "ac_bonus", "hp_bonus_flat"):
+        if sum(x["amount"] for x in effects if x["target"] == target) != combat[target]:
+            raise PlanError(f"mechanical_effects 与 combat.{target} 不一致")
+    required_effects = {"警觉": "initiative_bonus", "防御": "ac_bonus", "健壮": "hp_bonus_flat"}
+    for feat in plan.get("feats", []):
+        target = required_effects.get(feat["name"])
+        if target and not any(x["source"] == feat["name"] and x["target"] == target for x in effects):
+            raise PlanError(f"专长 {feat['name']} 的数值效果须列入 mechanical_effects.{target}")
+    audit = plan.get("level_audit")
+    if not isinstance(audit, dict):
+        raise PlanError("5R 须先提供 level_audit 等级—资源—特性核对表")
+    for key, actual in (("selected_prepared_count", len(selected)), ("always_prepared_count", len(always)),
+                        ("cantrip_count", len(plan.get("cantrips", [])))):
+        if audit.get(key) != actual:
+            raise PlanError(f"level_audit.{key} 与计划数量不符")
+    maximum = audit.get("spell_slots_max")
+    if not isinstance(maximum, dict) or any(str(k) not in {str(x) for x in range(1,10)} or
+        isinstance(v, bool) or not isinstance(v, int) or v < 0 for k,v in maximum.items()):
+        raise PlanError("level_audit.spell_slots_max 须为环阶到最大法术位的对象")
+    if any(slots.get(k, 0) > maximum.get(k, 0) for k in slots):
+        raise PlanError("当前法术位超过 level_audit.spell_slots_max")
+    highest = max((int(k) for k,v in maximum.items() if v), default=0)
+    if audit.get("max_spell_level") != highest:
+        raise PlanError("level_audit.max_spell_level 与最大法术位环阶不符")
+    if any(x["level"] > highest for x in prepared):
+        raise PlanError("准备法术环阶高于当前最高法术位")
+    for source in ("class", "subclass"):
+        key = source + "_features"
+        expected = names(audit, key)
+        actual = [x["name"] for x in plan.get("class_features", []) if x.get("source") == source]
+        if expected != actual:
+            raise PlanError(f"level_audit.{key} 与职业特性列表不符")
+    expected_resources = audit.get("resources")
+    actual_resources = {x["name"]: x["max"] for x in resources}
+    actual_resources.update({x["name"]: x["uses_max"] for x in free if x["uses_max"] != "at_will"})
+    if expected_resources != actual_resources:
+        raise PlanError("level_audit.resources 与资源上限不符")
+    totals = audit.get("expected_totals")
+    if not isinstance(totals, dict) or set(totals) != {"initiative", "ac", "hp"} or any(
+        isinstance(v, bool) or not isinstance(v, int) for v in totals.values()
+    ):
+        raise PlanError("level_audit.expected_totals 须提供先攻、AC、HP 三项预期整数")
+    return {"inventory": inventory, "selected_prepared_spells": selected,
+            "always_prepared_spells": always,
+            "prepared_spells": sorted(prepared, key=lambda spell: spell["level"]),
+            "free_cast_spells": free, "combat": combat, "level_audit": audit}
 
 
 def sheet_path(zf: zipfile.ZipFile, name: str) -> str:
@@ -188,6 +257,119 @@ def sheet_path(zf: zipfile.ZipFile, name: str) -> str:
         raise PlanError(f"模板页签关系损坏：{name}")
     target = link.get("Target", "").replace("\\", "/")
     return target.lstrip("/") if target.startswith("/") else "xl/" + target.lstrip("./")
+
+
+def template_feature_catalog(template: Path, class_name: str, subclass_name: str = "") -> tuple[dict[str, int], dict[str, int]]:
+    """Read literal feature names from the template's class data; never use cached formula output."""
+    with zipfile.ZipFile(template) as archive:
+        strings: list[str] = []
+        if "xl/sharedStrings.xml" in archive.namelist():
+            root = ET.fromstring(archive.read("xl/sharedStrings.xml"))
+            strings = ["".join(n.text or "" for n in si.iter(f"{{{NS}}}t"))
+                       for si in root.findall(f"{{{NS}}}si")]
+        root = ET.fromstring(archive.read(sheet_path(archive, "职业")))
+        values: dict[str, str] = {}
+        for cell in root.iter(f"{{{NS}}}c"):
+            ref = cell.get("r", "")
+            # Class/subclass option cells may be conditional formulas; use their
+            # cached displayed names only for option discovery, not feature data.
+            if cell.find(f"{{{NS}}}f") is not None and not re.fullmatch(r"[B-Z](?:[3-9]|1\d|2[0-2])", ref):
+                continue
+            raw = cell.findtext(f"{{{NS}}}v")
+            if cell.get("t") == "s" and raw is not None:
+                value = strings[int(raw)]
+            elif cell.get("t") == "inlineStr":
+                value = "".join(n.text or "" for n in cell.iter(f"{{{NS}}}t"))
+            else:
+                value = raw or ""
+            if value:
+                values[ref] = value.strip()
+    class_row = next((row for row in range(2, 23) if values.get(f"CH{row}") == class_name), None)
+    if class_row is None:
+        raise PlanError(f"5R 模板职业表没有 {class_name}；请核对职业名称或模板版本")
+    name_col = int(values[f"CK{class_row}"])
+    level_col = int(values[f"CJ{class_row}"])
+    def column(number: int) -> str:
+        result = ""
+        while number:
+            number, digit = divmod(number - 1, 26)
+            result = chr(65 + digit) + result
+        return result
+    subclass_rows = [(row, values[f"CH{row}"], int(values[f"CI{row}"]))
+                     for row in range(30, 285) if values.get(f"CH{row}") and
+                     values.get(f"CI{row}", "").isdigit()]
+    selected = next(((row, index) for row, name, index in subclass_rows if name == subclass_name), None)
+    if subclass_name and selected is None:
+        raise PlanError(f"5R 模板子职表没有 {subclass_name}")
+    # The class table starts at row 34. B:Z lists subclasses for each class;
+    # CH:CI gives each subclass's first data row relative to row 34.
+    option_row = next((row for row in range(3, 23) if values.get(f"B{row}") == class_name), None)
+    if option_row is None:
+        raise PlanError(f"模板子职索引没有主职业 {class_name}")
+    option_names = {values.get(f"{column(col)}{option_row}") for col in range(3, 27)}
+    starts = [index for _, name, index in subclass_rows if name in option_names]
+    if not starts:
+        raise PlanError(f"模板未找到 {class_name} 的子职数据边界")
+    class_end = 32 + min(starts)
+    if subclass_name and subclass_name not in option_names:
+        raise PlanError(f"{subclass_name} 不在 {class_name} 的模板子职选项中")
+    def collect(start_row: int, end_row: int) -> dict[str, int]:
+        found: dict[str, int] = {}
+        last_level = 1
+        for row in range(start_row, end_row + 1):
+            raw_level = values.get(f"{column(level_col)}{row}", "")
+            if raw_level.isdigit():
+                last_level = int(raw_level)
+            name = values.get(f"{column(name_col)}{row}", "")
+            if name and len(name) <= 40:
+                found[name] = last_level
+        return found
+    class_names = collect(40, class_end)
+    subclass_names: dict[str, int] = {}
+    if selected:
+        selected_row, selected_index = selected
+        next_entry = None
+        for row, _, index in subclass_rows:
+            if row <= selected_row:
+                continue
+            if index <= selected_index:
+                break
+            next_entry = index
+            break
+        first_data_row = 33 + selected_index
+        if next_entry is not None:
+            last_data_row = 32 + next_entry
+        else:
+            last_data_row = first_data_row
+            while values.get(f"{column(name_col)}{last_data_row+1}") and last_data_row < 262:
+                last_data_row += 1
+        subclass_names = collect(first_data_row, last_data_row)
+    return class_names, subclass_names
+
+
+def validate_template_features(plan: dict[str, Any], template: Path) -> None:
+    class_names, subclass_names = template_feature_catalog(template, str(plan["basic"]["class"]),
+                                                           str(plan["basic"].get("subclass", "")))
+    for feature in plan.get("class_features", []):
+        name, source, level = feature["name"], feature["source"], feature["acquired_level"]
+        if source == "class" and name not in class_names:
+            raise PlanError(f"职业特性名称不在该职业模板中：{name}")
+        if source == "class" and class_names[name] != level:
+            raise PlanError(f"{name} 的取得等级应为模板中的 {class_names[name]} 级")
+        if source == "subclass" and name not in subclass_names:
+            raise PlanError(f"子职特性名称不在该子职模板中：{name}")
+        if source == "subclass" and not plan["basic"].get("subclass"):
+            raise PlanError(f"子职特性 {name} 缺少 basic.subclass")
+        if source == "subclass" and subclass_names[name] != level:
+            raise PlanError(f"{name} 的取得等级应为模板中的 {subclass_names[name]} 级")
+    current_level = plan["basic"].get("level", 1)
+    for source, catalog in (("class", class_names), ("subclass", subclass_names)):
+        expected = {name for name, level in catalog.items() if level <= current_level}
+        actual = {x["name"] for x in plan.get("class_features", []) if x["source"] == source}
+        if expected != actual:
+            missing = expected - actual
+            extra = actual - expected
+            raise PlanError(f"{source} 当前等级特性不完整：缺少 {', '.join(sorted(missing)) or '无'}；多出 {', '.join(sorted(extra)) or '无'}")
 
 
 def col_number(ref: str) -> int:
@@ -232,6 +414,8 @@ def set_cell(root: ET.Element, ref: str, value: str | int | float | bool) -> Non
 def patch(template: Path, output: Path, changes: dict[str, dict[str, str | int | float | bool]]) -> None:
     if template.resolve() == output.resolve():
         raise PlanError("输出不能覆盖模板")
+    if output.exists() and not (output.stat().st_mode & stat.S_IWRITE):
+        raise PlanError(f"目标人物卡为只读，未写入：{output}")
     output.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(template) as source:
         paths = {sheet_path(source, name): cells for name, cells in changes.items()}
@@ -259,11 +443,13 @@ def patch(template: Path, output: Path, changes: dict[str, dict[str, str | int |
 
 
 def validate_plan(plan: dict[str, Any]) -> dict[str, Any]:
-    if plan.get("kind") != "dnd-character-plan" or plan.get("schema_version") != 1:
-        raise PlanError("需要 dnd-character-plan schema_version 1 计划")
+    if plan.get("kind") != "dnd-character-plan" or plan.get("schema_version") not in (1, 2):
+        raise PlanError("需要 dnd-character-plan schema_version 1/2 计划")
     ruleset = require(plan, "ruleset")
     if ruleset not in {"5e", "5r"}:
         raise PlanError("ruleset 只能是 5e（2014）或 5r（2024）")
+    if ruleset == "5r" and plan["schema_version"] != 2:
+        raise PlanError("5R 现使用 schema_version 2；请拆分法术来源并填写等级核对表")
     basic = require(plan, "basic")
     if not isinstance(basic, dict):
         raise PlanError("basic 必须是对象")
@@ -318,18 +504,27 @@ def put_optional(cells: dict[str, str | int | float], ref: str, value: Any) -> N
         cells[ref] = str(value) if not isinstance(value, int) else value
 
 
-def card_summary(entry: dict[str, Any], *, include_source: bool = False) -> str:
+def card_summary(entry: dict[str, Any], *, include_source: bool = False, strict: bool = False) -> str:
     description = str(entry.get("summary") or entry.get("description") or "").strip()
     source = str(entry.get("source", "")).strip() if include_source else ""
     text = f"{source}｜{description}" if source and description else source or description
+    if strict and len(text) > 32:
+        raise PlanError(f"{entry['name']} 的卡面说明超过 32 字；请单独提供简短 summary，完整内容留在战斗速查")
     return text if len(text) <= 32 else text[:31] + "…"
+
+
+def ordered_class_features(plan: dict[str, Any]) -> list[dict[str, Any]]:
+    return sorted(plan.get("class_features", []),
+                  key=lambda feature: (feature["acquired_level"], feature["source"] != "class"))
 
 
 def build_5r(plan: dict[str, Any], valid: dict[str, Any]) -> dict[str, dict[str, str | int | float]]:
     basic = valid["basic"]
     main: dict[str, str | int] = {"E3": str(basic["name"]), "E4": str(basic.get("player", "")),
                                   "E6": str(basic["class"]), "O6": valid["level"],
-                                  "T6": str(basic["species"])}
+                                  "T6": str(basic["species"]), "AW9": str(basic["class"])}
+    if basic.get("subclass"):
+        main["BD9"] = str(basic["subclass"])
     origin: dict[str, str | int] = {"E3": str(basic["name"]), "E4": str(basic.get("player", "")),
                                     "E6": str(basic["background"])}
     for ref, key in {"I6":"subclass", "T7":"subspecies", "T8":"alignment", "T9":"faith",
@@ -352,16 +547,16 @@ def build_5r(plan: dict[str, Any], valid: dict[str, Any]) -> dict[str, dict[str,
     for i, name in enumerate(names(plan, "weapons")):
         if i >= 5: raise PlanError("5R 主卡最多放 5 件武器")
         main[f"B{32+i}"] = name
-    for i, feat in enumerate(plan.get("class_features", [])):
+    for i, feat in enumerate(ordered_class_features(plan)):
         main[f"AX{17+i}"] = str(feat["name"])
-        put_optional(main, f"BC{17+i}", card_summary(feat))
+        put_optional(main, f"BC{17+i}", card_summary(feat, strict=True))
     for i, trait in enumerate(plan.get("species_traits", [])):
         main[f"BT{6+i}"] = str(trait["name"])
-        put_optional(main, f"BZ{6+i}", card_summary(trait))
+        put_optional(main, f"BZ{6+i}", card_summary(trait, strict=True))
     for i, feat in enumerate(plan.get("feats", [])):
         main[f"BT{19+i}"] = feat["acquired_level"]
         main[f"BU{19+i}"] = str(feat["name"])
-        put_optional(main, f"BZ{19+i}", card_summary(feat, include_source=True))
+        put_optional(main, f"BZ{19+i}", card_summary(feat, include_source=True, strict=True))
     for i, language in enumerate(names(plan, "languages")):
         if i >= 10: raise PlanError("5R 起源页最多放 10 门语言")
         origin[f"{'B' if i % 2 == 0 else 'H'}{24+i//2}"] = language
@@ -389,9 +584,13 @@ def build_5r(plan: dict[str, Any], valid: dict[str, Any]) -> dict[str, dict[str,
         if i >= 78: raise PlanError("5R 法术书最多放 78 道法术")
         spellbook[f"X{3+i}"] = spell
     free_slots = [f"Q{row}" for row in range(66, 74)]
-    prepared_slots = ([f"{col}{row}" for row in range(66, 74) for col in ("Y", "AG", "AO")] +
-                      ["AG74", "AO74"])
-    main.update((slot, spell["name"]) for slot, spell in zip(free_slots, valid["free_cast_spells"]))
+    prepared_slots = ([f"Y{row}" for row in range(66, 74)] +
+                      [f"AG{row}" for row in range(66, 75)] +
+                      [f"AO{row}" for row in range(66, 75)])
+    displayed_free = sorted((spell for spell in valid["free_cast_spells"] if
+                             spell["name"] not in {x["name"] for x in valid["prepared_spells"]}),
+                            key=lambda spell: spell["level"])
+    main.update((slot, spell["name"]) for slot, spell in zip(free_slots, displayed_free))
     main.update((slot, spell["name"]) for slot, spell in zip(prepared_slots, valid["prepared_spells"]))
     cantrips = names(plan, "cantrips")
     cantrip_slots = [f"{col}{row}" for row in range(77, 81) for col in ("Q", "Y")]
@@ -400,6 +599,7 @@ def build_5r(plan: dict[str, Any], valid: dict[str, Any]) -> dict[str, dict[str,
     combat = valid["combat"]
     main["G22"] = combat["initiative_bonus"]
     main["G23"] = combat["ac_bonus"]
+    main["BB7"] = combat["hp_bonus_flat"]
     shield = combat.get("shield", {})
     if shield.get("name"):
         main["AP40"] = str(shield["name"])
@@ -529,6 +729,7 @@ def combat_reference(plan: dict[str, Any], valid: dict[str, Any]) -> str:
         lines += ["## 卡面计算输入", "",
                   f"先攻额外加值：{combat['initiative_bonus']}；来源：{combat.get('initiative_bonus_source', '无')}",
                   f"AC 额外加值：{combat['ac_bonus']}；来源：{combat.get('ac_bonus_source', '无')}",
+                  f"HP 固定额外加值：{combat['hp_bonus_flat']}；来源：{combat.get('hp_bonus_flat_source', '无')}",
                   f"盾牌：{combat.get('shield', {}).get('name') or '无'}；装备：{'是' if combat.get('shield', {}).get('equipped') else '否'}",
                   "当前法术位：" + ("、".join(f"{tier}环 {count}" for tier, count in combat["spell_slots_current"].items()) or "无"),
                   "随身钱币：" + "、".join(f"{key.upper()} {combat['currency'][key]}" for key in ("pp", "gp", "ep", "sp", "cp")), ""]
@@ -542,23 +743,29 @@ def combat_reference(plan: dict[str, Any], valid: dict[str, Any]) -> str:
                          f"位置 {item['location']}；合计 {item['quantity'] * item['unit_weight']:g} lb")
         lines += ["", "背包重量按数量 × 单件重量写入模板；已装备物品和弹药由主卡单独计重。", ""]
     for title, key in (("职业特性", "class_features"), ("种族特性", "species_traits"), ("专长", "feats")):
-        entries = plan.get(key, [])
+        entries = ordered_class_features(plan) if key == "class_features" and valid["ruleset"] == "5r" else plan.get(key, [])
         if entries:
             lines += [f"## {title}", ""]
             for entry in entries:
                 detail = str(entry.get("description") or entry.get("summary") or "未提供说明")
-                suffix = (f"（{entry['acquired_level']}级，来源：{entry['source']}）" if key == "feats" and valid["ruleset"] == "5r" else "")
+                suffix = (f"（{entry['acquired_level']}级，来源：{entry['source']}）" if key in ("feats", "class_features") and valid["ruleset"] == "5r" else "")
                 lines.append(f"- {entry['name']}{suffix}：{detail}")
             lines.append("")
     if valid["ruleset"] == "5r":
-        for title, spells in (("无消耗法术", valid["free_cast_spells"]), ("准备法术", valid["prepared_spells"])):
+        prepared_names = {spell["name"] for spell in valid["prepared_spells"]}
+        free_by_name = {spell["name"]: spell for spell in valid["free_cast_spells"]}
+        for title, spells in (("无消耗法术", sorted((spell for spell in valid["free_cast_spells"]
+                                          if spell["name"] not in prepared_names), key=lambda spell: spell["level"])),
+                              ("准备法术（按环阶）", valid["prepared_spells"])):
             if spells:
                 lines += [f"## {title}", ""]
                 for spell in spells:
-                    uses = ("；无限次" if spell.get("uses_max") == "at_will" else
-                            f"；剩余 {spell['uses_remaining']}/{spell['uses_max']}，{spell['recharge']}") if title == "无消耗法术" else ""
+                    free_spell = spell if title == "无消耗法术" else free_by_name.get(spell["name"])
+                    uses = (("；无限次免费施放" if free_spell.get("uses_max") == "at_will" else
+                             f"；免费施放剩余 {free_spell['uses_remaining']}/{free_spell['uses_max']}，{free_spell['recharge']}")
+                            if free_spell else "")
                     description = f"；{spell['description']}" if spell.get("description") else ""
-                    lines.append(f"- {spell['name']}：来源 {spell['source']}{uses}{description}")
+                    lines.append(f"- {spell['level']}环 {spell['name']}：来源 {spell['source']}{uses}{description}")
                 lines.append("")
     for title, key in (("戏法", "cantrips"), ("已知法术", "known_spells"),
                        ("准备法术", "prepared_spells")):
@@ -570,6 +777,118 @@ def combat_reference(plan: dict[str, Any], valid: dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def inspect_saved(template: Path, destination: Path, changes: dict[str, dict[str, Any]],
+                  expected_totals: dict[str, int] | None = None, strict_parts: bool = True,
+                  plan: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Check the file on disk, never in-memory patch state. Formula caches require native save."""
+    with zipfile.ZipFile(template) as source, zipfile.ZipFile(destination) as saved:
+        if saved.testzip() is not None:
+            raise PlanError("保存后的 XLSX ZIP 结构损坏")
+        if strict_parts and source.namelist() != saved.namelist():
+            raise PlanError("保存后的页签/部件集合与模板不同，请人工确认原生保存影响")
+        def tabs(archive: zipfile.ZipFile) -> list[tuple[str | None, str]]:
+            workbook = ET.fromstring(archive.read("xl/workbook.xml"))
+            return [(sheet.get("name"), sheet.get("state", "visible"))
+                    for sheet in workbook.findall(f"{{{NS}}}sheets/{{{NS}}}sheet")]
+        if tabs(source) != tabs(saved):
+            raise PlanError("保存后的页签名称、顺序或隐藏状态与模板不同")
+        strings: list[str] = []
+        if "xl/sharedStrings.xml" in saved.namelist():
+            root = ET.fromstring(saved.read("xl/sharedStrings.xml"))
+            strings = ["".join(n.text or "" for n in si.iter(f"{{{NS}}}t"))
+                       for si in root.findall(f"{{{NS}}}si")]
+        roots = {name: ET.fromstring(saved.read(sheet_path(saved, name))) for name in changes}
+        for name, cells in changes.items():
+            present = {c.get("r"): c for c in roots[name].iter(f"{{{NS}}}c")}
+            for ref, expected in cells.items():
+                cell = present.get(ref)
+                if cell is None:
+                    raise PlanError(f"保存后缺少 {name}!{ref}")
+                if cell.get("t") == "inlineStr":
+                    actual = "".join(n.text or "" for n in cell.iter(f"{{{NS}}}t"))
+                elif cell.get("t") == "s":
+                    actual = strings[int(cell.findtext(f"{{{NS}}}v"))]
+                else:
+                    actual = cell.findtext(f"{{{NS}}}v")
+                if isinstance(expected, bool):
+                    okay = actual == ("1" if expected else "0")
+                elif isinstance(expected, (int, float)):
+                    okay = actual is not None and math.isclose(float(actual), expected, abs_tol=0.0001)
+                else:
+                    okay = actual == str(expected)
+                if not okay:
+                    raise PlanError(f"保存后 {name}!{ref} 不一致：预期 {expected}，实际 {actual}")
+        result: dict[str, Any] = {"input_cells": "passed", "sheet_states": "preserved",
+                                  "zip_parts": "preserved" if strict_parts else "not_compared_after_native_save",
+                                  "read_only": not bool(destination.stat().st_mode & stat.S_IWRITE)}
+        if plan is not None and plan["ruleset"] == "5r":
+            main = {c.get("r"): c for c in roots["主要"].iter(f"{{{NS}}}c")}
+            def cell_text(ref: str) -> str:
+                cell = main.get(ref)
+                if cell is None:
+                    return ""
+                if cell.get("t") == "inlineStr":
+                    return "".join(n.text or "" for n in cell.iter(f"{{{NS}}}t"))
+                if cell.get("t") == "s":
+                    return strings[int(cell.findtext(f"{{{NS}}}v"))]
+                return cell.findtext(f"{{{NS}}}v") or ""
+            features = ordered_class_features(plan)
+            actual_features = [cell_text(f"AX{row}") for row in range(17, 65)]
+            if [x for x in actual_features if x] != [x["name"] for x in features]:
+                raise PlanError("保存后的职业能力名称或数量与计划不一致")
+            prepared_slots = ([f"Y{row}" for row in range(66, 74)] +
+                              [f"AG{row}" for row in range(66, 75)] +
+                              [f"AO{row}" for row in range(66, 75)])
+            actual_prepared = [cell_text(ref) for ref in prepared_slots if cell_text(ref)]
+            planned_prepared = sorted(plan["selected_prepared_spells"] + plan["always_prepared_spells"],
+                                      key=lambda spell: spell["level"])
+            if actual_prepared != [spell["name"] for spell in planned_prepared]:
+                raise PlanError("保存后的准备法术顺序或数量与计划不一致")
+            actual_free = [cell_text(f"Q{row}") for row in range(66, 74) if cell_text(f"Q{row}")]
+            expected_free = [x["name"] for x in sorted(plan["free_cast_spells"], key=lambda x: x["level"])
+                             if x["name"] not in set(actual_prepared)]
+            if actual_free != expected_free or len(set(actual_free + actual_prepared)) != len(actual_free + actual_prepared):
+                raise PlanError("保存后的无消耗法术有重复、顺序或数量错误")
+            cantrip_slots = [f"{col}{row}" for row in range(77, 81) for col in ("Q", "Y")]
+            actual_cantrips = [cell_text(ref) for ref in cantrip_slots if cell_text(ref)]
+            if actual_cantrips != plan.get("cantrips", []):
+                raise PlanError("保存后的戏法顺序或数量与计划不一致")
+            result["feature_count"] = len(features)
+            result["prepared_spell_count"] = len(actual_prepared)
+            result["free_spell_display_count"] = len(actual_free)
+            result["cantrip_count"] = len(actual_cantrips)
+            if expected_totals is not None:
+                for i, feature in enumerate(features):
+                    ref = f"AW{17+i}"
+                    if main.get(ref) is None or main[ref].find(f"{{{NS}}}f") is None:
+                        raise PlanError(f"保存后职业等级公式 {ref} 丢失")
+                    raw = cell_text(ref)
+                    if not raw or not math.isclose(float(raw), feature["acquired_level"], abs_tol=0.001):
+                        raise PlanError(f"保存后职业能力等级 AW{17+i} 未计算正确：{feature['name']}，预期 {feature['acquired_level']}，实际 {raw}")
+                result["feature_levels"] = "passed"
+                for tier, maximum in plan["level_audit"]["spell_slots_max"].items():
+                    ref = f"H{71+int(tier)}"
+                    if main.get(ref) is None or main[ref].find(f"{{{NS}}}f") is None:
+                        raise PlanError(f"保存后法术位上限公式 {ref} 丢失")
+                    raw = cell_text(ref)
+                    if (raw == "" and maximum != 0) or (raw != "" and not math.isclose(float(raw), maximum, abs_tol=0.001)):
+                        raise PlanError(f"保存后法术位上限 {ref} 未计算正确：预期 {maximum}，实际 {raw}")
+                result["spell_slot_maxima"] = "passed"
+        if expected_totals is not None:
+            main = {c.get("r"): c for c in roots["主要"].iter(f"{{{NS}}}c")}
+            actuals = {}
+            for key, ref in (("initiative", "D22"), ("ac", "D23"), ("hp", "V22")):
+                cell = main.get(ref)
+                if cell is None or cell.find(f"{{{NS}}}f") is None:
+                    raise PlanError(f"保存后关键公式 {ref} 丢失")
+                raw = cell.findtext(f"{{{NS}}}v") if cell is not None else None
+                if raw is None or not math.isclose(float(raw), expected_totals[key], abs_tol=0.001):
+                    raise PlanError(f"保存后 {ref} 计算值未通过：预期 {expected_totals[key]}，实际 {raw}；请原生重算后保存")
+                actuals[key] = float(raw)
+            result["calculated_totals"] = actuals
+        return result
+
+
 def fill(plan: dict[str, Any], destination: Path | None, template_override: Path | None) -> Path:
     valid = validate_plan(plan)
     ruleset = valid["ruleset"]
@@ -577,17 +896,31 @@ def fill(plan: dict[str, Any], destination: Path | None, template_override: Path
     if not template.is_file(): raise PlanError(f"缺少 {ruleset.upper()} 模板：{template}")
     if ruleset == "5e" and "5R" in template.name.upper():
         raise PlanError("禁止用 5R 模板生成 2014 年 5E 人物卡")
+    if ruleset == "5r":
+        validate_template_features(plan, template)
     changes = build_5r(plan, valid) if ruleset == "5r" else build_5e(plan, valid)
     destination = output_path(plan, destination)
+    if destination.exists() and not (destination.stat().st_mode & stat.S_IWRITE):
+        raise PlanError(f"目标人物卡为只读，未写入：{destination}")
+    if ruleset == "5r":
+        checklist = destination.with_name(destination.stem + "-等级核对.json")
+        checklist.parent.mkdir(parents=True, exist_ok=True)
+        checklist.write_text(json.dumps({"ruleset": ruleset, "class": valid["basic"]["class"],
+                                         "subclass": valid["basic"].get("subclass", ""),
+                                         "level": valid["level"], **valid["level_audit"]},
+                                        ensure_ascii=False, indent=2), encoding="utf-8")
     patch(template, destination, changes)
+    structural = inspect_saved(template, destination, changes, plan=plan)
     reference = destination.with_name(destination.stem + "-战斗速查.md")
     reference.write_text(combat_reference(plan, valid), encoding="utf-8")
     report = {"ruleset": ruleset, "workbook": str(destination), "scores_final": valid["final"],
               "level": valid["level"], "skill_proficiencies": valid["skills"],
               "skill_expertise": valid["expertise"], "changed_cells": {k: len(v) for k,v in changes.items()},
               "combat_reference": str(reference), "native_recalculation": "pending",
+              "saved_file_check": structural, "visual_review": "pending",
               "note": "请用 WPS 或 Excel 原生重算并核对核心页；兼容渲染结果不可覆盖原卡。"}
     if ruleset == "5r":
+        report["level_checklist"] = str(checklist)
         report["bag_weight_lb"] = {location: sum(item["quantity"] * item["unit_weight"]
                                                   for item in valid["inventory"] if item["location"] == location)
                                    for location in ("bag1", "bag2")}
@@ -600,10 +933,28 @@ def main() -> None:
     parser.add_argument("--input", required=True, type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--template", type=Path)
+    parser.add_argument("--verify-only", action="store_true", help="原生重算并关闭后，重新读取保存文件核对输入与关键计算值")
     args = parser.parse_args()
     try:
         plan = json.loads(args.input.read_text(encoding="utf-8"))
-        print(fill(plan, args.output, args.template))
+        if args.verify_only:
+            valid = validate_plan(plan)
+            template = args.template or ROOT / "assets" / f"dnd{valid['ruleset']}-blank.xlsx"
+            if valid["ruleset"] == "5r":
+                validate_template_features(plan, template)
+            changes = build_5r(plan, valid) if valid["ruleset"] == "5r" else build_5e(plan, valid)
+            destination = output_path(plan, args.output)
+            result = inspect_saved(template, destination, changes,
+                                   valid["level_audit"]["expected_totals"] if valid["ruleset"] == "5r" else None,
+                                   strict_parts=False, plan=plan)
+            report_path = destination.with_suffix(".report.json")
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            report["post_save_verification"] = result
+            report["native_recalculation"] = "verified_totals" if valid["ruleset"] == "5r" else "inputs_only"
+            report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+            print(json.dumps(result, ensure_ascii=False))
+        else:
+            print(fill(plan, args.output, args.template))
     except (OSError, ValueError, zipfile.BadZipFile, KeyError) as error:
         raise SystemExit(f"建卡失败：{error}") from error
 
