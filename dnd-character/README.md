@@ -9,4 +9,4 @@
 | 5E / 2014 | `DND 5E人物卡（法术查询列表整合版v4.4.2） - by桃子.xlsx` | `dnd5e-blank.xlsx` |
 | 5R / 2024 | `DND5R人物卡_悲灵_弗人_枭熊适配版.xlsx` | `dnd5r-blank.xlsx` |
 
-不要把 5R 卡当作 5E 卡使用。两张原卡、CHM 规则书、已填样卡以及生成的人物卡均不会随公开仓库提交。具体计划格式、命令与验证要求见 [SKILL.md](SKILL.md) 和 [计划字段](references/plan-schema.md)。
+不要把 5R 卡当作 5E 卡使用。填卡脚本同时生成一份战斗速查 Markdown，保存卡面单行区域放不下的完整说明。两张原卡、CHM 规则书、已填样卡以及生成的人物卡均不会随公开仓库提交。具体计划格式、命令与验证要求见 [SKILL.md](SKILL.md) 和 [计划字段](references/plan-schema.md)。
