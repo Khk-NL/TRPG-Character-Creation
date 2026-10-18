@@ -147,8 +147,8 @@
           <label><input type="radio" name="dndAbilityMethod" value="rolled"> 已掷好，一键粘贴</label>
           <label><input type="radio" name="dndAbilityMethod" value="point_buy"> 购点制</label>
         </div>
-        <p class="hint">标准数组与购点制由 Agent 规划；掷骰模式请粘贴六项基础值，不包含 5E 种族或 5R 背景加值。</p>
-        <div id="dnd-rolledBox" hidden><label for="dnd-scoresPaste">基础属性 *</label><textarea id="dnd-scoresPaste" placeholder="力量 15 敏捷 13 体质 14 智力 10 感知 12 魅力 8"></textarea></div>
+        <p class="hint">标准数组与购点制由 Agent 规划；掷骰模式可粘贴带名称的六项基础值，或「[18, 16, 14, 13, 12, 9] = 82」这类结果。无名称数组按力量、敏捷、体质、智力、感知、魅力排序，不包含 5E 种族或 5R 背景加值。</p>
+        <div id="dnd-rolledBox" hidden><label for="dnd-scoresPaste">基础属性 *</label><textarea id="dnd-scoresPaste" placeholder="DND5E人物作成：[18, 16, 14, 13, 12, 9] = 82"></textarea></div>
       </section>
       <details class="card" id="dnd-optional"><summary>展开更多可选信息</summary>
         <div class="grid two">
@@ -399,11 +399,25 @@
     const aliases = {STR:"STR", DEX:"DEX", CON:"CON", INT:"INT", WIS:"WIS", CHA:"CHA", 力量:"STR", 敏捷:"DEX", 体质:"CON", 智力:"INT", 感知:"WIS", 魅力:"CHA"};
     function parseScores(source) {
       const result = {};
-      const pattern = /(STR|DEX|CON|INT|WIS|CHA|力量|敏捷|体质|智力|感知|魅力)\s*(?:[:：=]|\s)\s*(\d{1,2})(?!\d)/gi;
-      for (const match of source.matchAll(pattern)) result[aliases[match[1].toUpperCase()]] = Number(match[2]);
-      if (!Object.keys(result).length && !/[A-Za-z\u4e00-\u9fff]/.test(source)) {
-        const numbers = source.match(/\d{1,2}/g) || [];
-        if (numbers.length === 6) abilities.forEach((ability, index) => { result[ability] = Number(numbers[index]); });
+      const bracketed = source.match(/[\[［【]([^\]］】]*)[\]］】]/);
+      if (bracketed) {
+        const parts = bracketed[1].trim().split(/[\s,，、]+/);
+        if (parts.length !== 6 || !parts.every(part => /^\d{1,2}$/.test(part))) {
+          throw Error("方括号内应有六项数字，顺序为力量、敏捷、体质、智力、感知、魅力。");
+        }
+        const numbers = parts.map(Number);
+        const total = source.slice(bracketed.index + bracketed[0].length).match(/^\s*[=＝]\s*(\d+)(?!\d)/);
+        if (total && numbers.reduce((sum, number) => sum + number, 0) !== Number(total[1])) {
+          throw Error(`六项属性总和与标注的 ${total[1]} 不一致，请核对粘贴结果。`);
+        }
+        abilities.forEach((ability, index) => { result[ability] = numbers[index]; });
+      } else {
+        const pattern = /(STR|DEX|CON|INT|WIS|CHA|力量|敏捷|体质|智力|感知|魅力)\s*(?:[:：=]|\s)\s*(\d{1,2})(?!\d)/gi;
+        for (const match of source.matchAll(pattern)) result[aliases[match[1].toUpperCase()]] = Number(match[2]);
+        if (!Object.keys(result).length && !/[A-Za-z\u4e00-\u9fff]/.test(source)) {
+          const numbers = source.match(/\d{1,2}/g) || [];
+          if (numbers.length === 6) abilities.forEach((ability, index) => { result[ability] = Number(numbers[index]); });
+        }
       }
       if (abilities.some(ability => !Number.isInteger(result[ability]) || result[ability] < 3 || result[ability] > 20)) {
         throw Error("请粘贴六项 3–20 的基础属性：STR、DEX、CON、INT、WIS、CHA。");
